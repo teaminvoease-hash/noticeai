@@ -426,7 +426,7 @@ const ClientNoticeSubmission = () => {
       actions={<><Link className="btn btn-light" to="/client-my-notices">My Notices</Link><Link className="btn btn-light" to="/client-dashboard">Dashboard</Link></>}
     >
       <article className="form-panel">
-        <h3>{editingId ? "Edit Notice" : "Notice Submission Form"}</h3>
+        <p className="eyebrow">NOTICE REQUEST</p><h3>{editingId ? "Edit your request" : "Tell us about your matter"}</h3><p>Choose a category, select the recipient and explain what happened. Include dates, amounts and the resolution you seek. Attach supporting records so your reviewer can understand the matter.</p><p>Need to add the recipient first? <Link className="text-link" to="/client-defaulters-create">Add a recipient →</Link></p>
         <form className="crud-form" onSubmit={handleSubmit}>
           <label>Notice Subject</label>
           <input
@@ -488,7 +488,7 @@ const ClientNoticeSubmission = () => {
               {previewLoading ? "Generating Preview..." : noticePreview ? "Regenerate Notice" : "Generate Preview"}
             </button>
             <button type="submit" className="btn btn-primary" disabled={submitting || previewLoading || uploadingDocument}>
-              {submitting ? "Saving..." : uploadingDocument ? "Uploading..." : editingId ? "Update Notice" : "Submit Notice Request"}
+              {submitting ? "Saving..." : uploadingDocument ? "Uploading..." : editingId ? "Update Notice" : "Request a Notice Request"}
             </button>
             {editingId ? (
               <button type="button" className="btn btn-light" onClick={resetForm}>

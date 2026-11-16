@@ -1,3 +1,4 @@
+import {signOut} from '../../../session';
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -178,14 +179,14 @@ const ClientDashboard = () => {
       <main className={`app-shell ${sidebarOpen ? "sidebar-open" : ""}`} id="appShell">
         <aside className="app-sidebar">
           <div className="brand-wrap">
-            <h2>Legal Notice Platform</h2>
+            <h2>ResolveX</h2>
             <p>Client workspace</p>
           </div>
           <nav className="side-nav">
             <Link to="/client-dashboard" className="side-link active">Dashboard</Link>
-            <Link to="/client-defaulters" className="side-link">My Defaulters</Link>
-            <Link to="/client-defaulters-create" className="side-link">Create Defaulter</Link>
-            <Link to="/client-notice-submission" className="side-link">Submit Notice</Link>
+            <Link to="/client-defaulters" className="side-link">Recipients</Link>
+            <Link to="/client-defaulters-create" className="side-link">Add Recipient</Link>
+            <Link to="/client-notice-submission" className="side-link">Request a Notice</Link>
             <Link to="/client-my-notices" className="side-link">My Notices</Link>
             <Link to="/client-documents" className="side-link">Documents</Link>
             <Link to="/client-payments" className="side-link">Payments</Link>
@@ -207,13 +208,13 @@ const ClientDashboard = () => {
               </div>
             </div>
             <div className="header-actions">
-              <button className="btn btn-light" onClick={() => navigate("/client-login")}>Logout</button>
+              <button className="btn btn-light" onClick={() => signOut("client")} >Logout</button>
               <Link className="btn btn-primary" to="/client-notice-submission">New Notice</Link>
               <div className="avatar-chip">{clientInitials}</div>
             </div>
           </header>
 
-          <div className="app-content">
+          <div className="app-content"><section className="getting-started"><div><p className="eyebrow">YOUR NEXT STEP</p><h2>Start with the facts. Track every handoff.</h2><p>Add your business authority letter, save the recipient and describe your matter.</p></div><div className="start-steps"><Link to="/client-profile">01 · Complete your profile →</Link><Link to="/client-defaulters-create">02 · Add a recipient →</Link><Link to="/client-notice-submission">03 · Request a notice →</Link></div></section>
             <section
               className="panel"
               style={{
@@ -307,7 +308,7 @@ const ClientDashboard = () => {
 
             <section className="stat-grid">
               <article className="stat-item">
-                <p className="k">My Defaulters</p>
+                <p className="k">Recipients</p>
                 <p className="v">{dashboardStats.totalDefaulters}</p>
                 <p className="delta">{loading ? "Loading..." : "Linked to your account"}</p>
               </article>
@@ -356,7 +357,7 @@ const ClientDashboard = () => {
                 <h3>Quick Actions</h3>
                 <div className="action-grid">
                   <Link to="/client-notice-submission" className="action-btn">Submit New Notice</Link>
-                  <Link to="/client-defaulters-create" className="action-btn">Create Defaulter</Link>
+                  <Link to="/client-defaulters-create" className="action-btn">Add Recipient</Link>
                   <Link to="/client-documents" className="action-btn">Open Documents</Link>
                   <Link to="/client-my-notices" className="action-btn">View My Notices</Link>
                 </div>

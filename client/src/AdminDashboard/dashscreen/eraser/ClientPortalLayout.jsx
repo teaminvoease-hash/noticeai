@@ -7,9 +7,9 @@ const navItems = [
   {key:'downloads',label:'Downloads',to:'/client-downloads'},
   {key:'notifications',label:'Notifications',to:'/client-notifications'},
   { key: "dashboard", label: "Dashboard", to: "/client-dashboard" },
-  { key: "defaulters", label: "My Defaulters", to: "/client-defaulters" },
-  { key: "createDefaulter", label: "Create Defaulter", to: "/client-defaulters-create" },
-  { key: "submit", label: "Submit Notice", to: "/client-notice-submission" },
+  { key: "defaulters", label: "Recipients", to: "/client-defaulters" },
+  { key: "createDefaulter", label: "Add Recipient", to: "/client-defaulters-create" },
+  { key: "submit", label: "Request a Notice", to: "/client-notice-submission" },
   { key: "notices", label: "My Notices", to: "/client-my-notices" },
   { key: "documents", label: "Documents", to: "/client-documents" },
   { key: "payments", label: "Payments", to: "/client-payments" },
@@ -25,7 +25,7 @@ const ClientPortalLayout = ({ activeKey, title, subtitle, actions, children, sho
       <main className={`app-shell ${sidebarOpen ? "sidebar-open" : ""}`} id="appShell">
         <aside className="app-sidebar">
           <div className="brand-wrap">
-            <h2>Legal Notice Platform</h2>
+            <h2>ResolveX</h2>
             <p>Client workspace</p>
           </div>
           <nav className="side-nav">

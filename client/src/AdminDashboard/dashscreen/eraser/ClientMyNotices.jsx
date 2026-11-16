@@ -455,7 +455,7 @@ const ClientMyNotices = () => {
       activeKey="notices"
       title="My Notices"
       subtitle="Track notice status from submission to signed delivery."
-      actions={<><Link className="btn btn-light" to="/client-notice-submission">Submit Notice</Link><Link className="btn btn-light" to="/client-dashboard">Dashboard</Link></>}
+      actions={<><Link className="btn btn-light" to="/client-notice-submission">Request a Notice</Link><Link className="btn btn-light" to="/client-dashboard">Dashboard</Link></>}
     >
       <article className="table-panel client-notices-panel">
         <div className="status-tabs" id="clientNoticeTabs">

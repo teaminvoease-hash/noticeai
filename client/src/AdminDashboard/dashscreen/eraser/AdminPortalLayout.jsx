@@ -24,7 +24,7 @@ const AdminPortalLayout = ({ activeKey, title, subtitle, actions, children }) =>
       <main className={`app-shell admin-shell ${sidebarOpen ? "sidebar-open" : ""}`} id="appShell">
         <aside className="app-sidebar">
           <div className="brand-wrap">
-            <h2>Legal Notice Platform</h2>
+            <h2>ResolveX</h2>
             <p>Admin Workspace</p>
           </div>
           <nav className="side-nav">

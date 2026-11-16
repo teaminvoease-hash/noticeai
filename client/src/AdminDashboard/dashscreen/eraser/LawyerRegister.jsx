@@ -129,7 +129,7 @@ const LawyerRegister = () => {
 
   return (
     <div className="auth-body">
-      <main className="auth-layout">
+      <main className="auth-layout"><aside className="auth-story"><Link className="rx-brand" to="/">Resolve<span>X</span><small>BY CREDEND</small></Link><div><p className="eyebrow">YOUR BUSINESS NOTICE WORKSPACE</p><h2>Every matter.<br/>One clear next step.</h2><p>Keep requests, professional review and supporting documents connected.</p><img src="/assets/reference/dashboard-preview.webp" alt="Notice workspace overview"/><ul><li>Structured notice requests</li><li>Role-based access to your work</li><li>Documents and progress in one place</li></ul></div><nav aria-label="Choose your login"><Link to="/client-login">Client</Link><Link to="/lawyer-login">Lawyer</Link><Link to="/admin-login">Admin</Link></nav></aside>
         <section className="auth-panel">
           <Link className="back-link" to="/lawyer-login">Back</Link>
           <p className="auth-tag">Lawyer Portal</p>
@@ -168,10 +168,10 @@ const LawyerRegister = () => {
             <input id="lawyer-bar-id-file" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => updateField("barIdFile", e.target.files?.[0] || null)} required />
 
             <label htmlFor="lawyer-signup-password">Password</label>
-            <input id="lawyer-signup-password" type="password" placeholder="Create password" value={form.password} onChange={(e) => updateField("password", e.target.value)} required />
+            <input id="lawyer-signup-password" autoComplete="new-password" type="password" placeholder="Create password" value={form.password} onChange={(e) => updateField("password", e.target.value)} required />
 
             <label htmlFor="lawyer-confirm-password">Confirm Password</label>
-            <input id="lawyer-confirm-password" type="password" placeholder="Re-enter password" value={form.confirmPassword} onChange={(e) => updateField("confirmPassword", e.target.value)} required />
+            <input id="lawyer-confirm-password" autoComplete="new-password" type="password" placeholder="Re-enter password" value={form.confirmPassword} onChange={(e) => updateField("confirmPassword", e.target.value)} required />
 
             <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
               {loading ? "Creating Account..." : "Create Lawyer Account"}

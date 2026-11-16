@@ -54,7 +54,7 @@ const AdminLogin = () => {
 
   return (
     <div className="auth-body admin-theme">
-      <main className="auth-layout">
+      <main className="auth-layout"><aside className="auth-story"><Link className="rx-brand" to="/">Resolve<span>X</span><small>BY CREDEND</small></Link><div><p className="eyebrow">YOUR BUSINESS NOTICE WORKSPACE</p><h2>Every matter.<br/>One clear next step.</h2><p>Keep requests, professional review and supporting documents connected.</p><img src="/assets/reference/dashboard-preview.webp" alt="Notice workspace overview"/><ul><li>Structured notice requests</li><li>Role-based access to your work</li><li>Documents and progress in one place</li></ul></div><nav aria-label="Choose your login"><Link to="/client-login">Client</Link><Link to="/lawyer-login">Lawyer</Link><Link to="/admin-login">Admin</Link></nav></aside>
         <section className="auth-panel">
           <Link className="back-link" to="/">Back</Link>
           <p className="auth-tag">Admin Control Portal</p>
@@ -75,7 +75,7 @@ const AdminLogin = () => {
             <label htmlFor="admin-password">Password</label>
             <input
               id="admin-password"
-              type="password"
+              autoComplete="current-password" type="password"
               placeholder="Enter admin password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

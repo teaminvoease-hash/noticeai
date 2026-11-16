@@ -5,6 +5,7 @@ import {useSelector} from 'react-redux';
 import Home from './Home';
 import './portal.css';
 import './enhancements.css';
+import './upgrade.css';
 const AdminDashboard=lazy(()=>import('./AdminDashboard/dashscreen/eraser/AdminDashboard'));
 const AdminUsersPage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/AdminUsersPage'));
 const AdminUsersCreatePage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/AdminUsersCreatePage'));
