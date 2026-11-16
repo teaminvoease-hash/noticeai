@@ -19,7 +19,14 @@ test('full client intake, payment verification, assignment and document ownershi
  assert.equal((await request(app).post('/api/payu/success').send({...callback,amount:'0.01'})).status,400);
  assert.equal((await request(app).post('/api/payu/success').send(callback)).status,302);assert.equal((await request(app).post('/api/payu/success').send(callback)).status,302);
  const assignment=await call(admin,'post','/api/client-portal/notices/'+id+'/assign-lawyer',{lawyerId:lawyerUser.id});assert.equal(assignment.body.success,true,JSON.stringify(assignment.body));
- assert.equal((await lawyer.get('/api/client-portal/notices')).body.data.length,1);assert.equal((await lawyer.get('/uploads/'+name)).status,200);
+ assert.equal((await lawyer.get('/api/client-portal/notices')).body.data.length,1);
+ const reopenedApp=require('../server/app').createApp({sessionStore:new(require('express-session').MemoryStore)()});
+ const resumedLawyer=request.agent(reopenedApp);await call(resumedLawyer,'post','/api/auth/lawyer/login',{email:'lawyer@example.test',password:'Testing-password-123'});
+ const download=await resumedLawyer.get('/uploads/'+name);assert.equal(download.status,200);assert.equal(download.headers['content-type'],'application/pdf');
+ assert.equal(download.body.toString(),'%PDF-1.7\n%%EOF');
+ const attachment=await require('../server/src/storage').attachment(name,'signed.pdf');assert.equal(attachment.filename,'signed.pdf');
+ if(attachment.content){const chunks=[];for await(const part of attachment.content)chunks.push(part);assert.equal(Buffer.concat(chunks).toString(),'%PDF-1.7\n%%EOF');}
+ 
  const secondLawyer=request.agent(app);await call(secondLawyer,'post','/api/auth/lawyer/login',{email:'lawyer2@example.test',password:'Testing-password-123'});assert.equal((await secondLawyer.get('/api/client-portal/notices')).body.data.length,0);assert.equal((await secondLawyer.get('/uploads/'+name)).status,404);
  const edit=await call(lawyer,'post','/api/client-portal/notices/'+id+'/generated-notice',{generatedNotice:'<p>Reviewed draft</p><script>alert(1)</script>'});assert.equal(edit.body.success,true);assert.ok(!edit.body.data.generatedNotice.includes('<script>'));
  assert.equal((await call(lawyer,'post','/api/client-portal/notices/'+id+'/status',{status:'approved'})).body.success,true);

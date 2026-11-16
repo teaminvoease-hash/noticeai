@@ -807,7 +807,7 @@ ${lawyerName}
 Legal Notice Platform
     `.trim();
 
-    await EmailSendHnaldre(String(defaulter.email).trim(), emailSubject, emailContent, [{filename:notice.noticeId+'-signed.pdf',path:require('path').resolve(process.env.DATA_DIR||'data','uploads',notice.signedFile)}]);
+    await EmailSendHnaldre(String(defaulter.email).trim(), emailSubject, emailContent, [await require('../storage').attachment(notice.signedFile,notice.noticeId+'-signed.pdf')]);
     await ClientNotification.create({clientId:notice.clientId,notificationId:buildId('NTF'),channel:'Portal',noticeId:notice.noticeId,message:'Assigned lawyer dispatched the signed notice by email.'});
     await sendNoticeDispatchNotifications({
       lawyer,
