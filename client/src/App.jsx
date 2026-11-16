@@ -29,9 +29,6 @@ const ClientPayments=lazy(()=>import('./AdminDashboard/dashscreen/eraser/ClientP
 const ClientProfilePage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/ClientProfilePage'));
 const LawyerDashboard=lazy(()=>import('./AdminDashboard/dashscreen/eraser/LawyerDashboard'));
 const LawyerAssignedNoticesPage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/LawyerAssignedNoticesPage'));
-const LawyerDraftsDisplayPage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/LawyerDraftsDisplayPage'));
-const LawyerDraftReviewPage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/LawyerDraftReviewPage'));
-const LawyerDraftsEditPage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/LawyerDraftsEditPage'));
 const LawyerDocumentRequestsPage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/LawyerDocumentRequestsPage'));
 const LawyerDocumentRequestsDisplayPage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/LawyerDocumentRequestsDisplayPage'));
 const LawyerWithdrawalRequestsPage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/LawyerWithdrawalRequestsPage'));
