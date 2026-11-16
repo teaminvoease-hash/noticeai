@@ -1,7 +1,7 @@
 const express=require('express'),mongoose=require('mongoose');const {wrap,allow,fail}=require('./access');
 const {AdminWithdrawal}=require('./models/adminWithdrawal.model');
 const Wallet=mongoose.model('wallets',new mongoose.Schema({lawyerId:{type:String,unique:true},balance:{type:Number,default:0}}));
-const Entry=mongoose.model('wallet_entries',new mongoose.Schema({lawyerId:String,amount:Number,note:String},{timestamps:true}));
+const Entry=mongoose.model('wallet_entries',new mongoose.Schema({lawyerId:String,amount:Number,note:String},{timestamps:true}).index({lawyerId:1,note:1},{unique:true}));
 const validAmount=n=>Number.isFinite(n)&&n>0&&Math.abs(Math.round(n*100)-n*100)<0.000001;
 const router=express.Router();router.use(['/wallet','/wallet/credit','/get-admin-withdrawal','/create-admin-withdrawal','/update-admin-withdrawal/:id'],allow('admin','lawyer'));
 router.get('/wallet',wrap(async(req,res)=>{const id=req.session.user.role==='lawyer'?req.session.user.id:req.query.lawyerId;const wallet=await Wallet.findOne({lawyerId:id});const requests=await AdminWithdrawal.find({advocateId:id});res.json({success:true,data:{balance:wallet?.balance||0,pending:requests.filter(x=>x.status==='pending').reduce((s,x)=>s+x.amount,0),paid:requests.filter(x=>x.status==='approved').reduce((s,x)=>s+x.amount,0),entries:await Entry.find({lawyerId:id}).sort({createdAt:-1})}})}));

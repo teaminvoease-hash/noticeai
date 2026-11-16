@@ -10,6 +10,7 @@ const clientPaymentSchema = new Schema(
     method: { type: String, required: true },
     billingEmail: { type: String },
     receiptFileName: { type: String },
+    reconciliationReference:String, verifiedBy:String, verifiedAt:Date,
     status: { type: String, default: "Pending" },
   },
   { timestamps: true }
