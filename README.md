@@ -71,3 +71,11 @@ Integration tests use an ephemeral replica set by default (downloads a MongoDB b
 Four local security tests and the production build were verified. The four MongoDB workflow tests also passed in GitHub Actions. The managed environment blocked MongoDB binary downloads and browser-preview routing, so local real-database integration and visual QA could not be completed there. Live PayU, SMTP, AI, KYC approval and bank payout were not exercised using production credentials.
 
 Dependency upgrades replace vulnerable PDF, email, file-detection, router and rich-text packages from the recovered implementation. The latest audit reports no critical, high or moderate advisories; two low-severity Quill-related advisories remain. Rich-text previews and saved draft HTML are sanitised at rendering and server-write boundaries.
+
+## Free Render testing deployment
+
+Set `UPLOAD_STORAGE=gridfs` to store document bytes in the existing MongoDB database using GridFS. Private download and attachment permissions remain the same. Document contents and sessions survive service restarts; no Render disk is required. The default remains `filesystem` for existing disk-backed deployments, and changing the storage setting does not automatically move existing files. Use GridFS from the start for a new free deployment.
+
+On Render, the server uses the platform-provided `RENDER_EXTERNAL_URL` when `APP_ORIGIN` is absent. Explicitly set `APP_ORIGIN` for a custom domain. Use Node 22, build `npm ci --include=dev && npm run build`, start `npm start`, `TRUST_PROXY=1`, a private `MONGODB_URI`, a random `SESSION_SECRET` and `UPLOAD_STORAGE=gridfs`. The free plan is for testing, sleeps when idle, shares the workspace's free instance hours, and cannot send SMTP on the usual email ports. No paid service, payment provider or email provider is enabled by this configuration.
+
+GridFS files count against the free Atlas cluster's 512 MB storage allowance together with application data and indexes. Do not upload real client or KYC data to the testing deployment. CI tests both storage modes, including private file retrieval after creating a fresh application instance.

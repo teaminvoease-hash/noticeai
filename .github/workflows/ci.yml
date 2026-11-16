@@ -26,6 +26,12 @@ jobs:
             if docker exec noticeai-test-mongo mongosh --quiet --eval 'if(!db.hello().isWritablePrimary)quit(1)'; then break; fi
             sleep 1
           done
-      - run: npm run test:integration
+      - name: Filesystem-backed workflow integration
+        run: npm run test:integration
         env:
+          TEST_MONGODB_URI: mongodb://127.0.0.1:27017/noticeai_integration_test?replicaSet=rs0&directConnection=true
+      - name: GridFS-backed workflow integration
+        run: npm run test:integration
+        env:
+          UPLOAD_STORAGE: gridfs
           TEST_MONGODB_URI: mongodb://127.0.0.1:27017/noticeai_integration_test?replicaSet=rs0&directConnection=true

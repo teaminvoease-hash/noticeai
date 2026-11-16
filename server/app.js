@@ -15,16 +15,19 @@ function createApp({sessionStore}={}){
  app.use('/api',wrap(async(req,res,next)=>{if(req.session.user){const u=await models[req.session.user.role]?.findById(req.session.user.id);if(!u||(u.status&&!['active','verified','onboard'].includes(u.status)))fail(401,'Please sign in again')}next()}));
  // Never expose password hashes via legacy administration responses.
  app.use('/api',(req,res,next)=>{const json=res.json.bind(res);res.json=data=>json(JSON.parse(JSON.stringify(data,(key,value)=>key==='password'?undefined:value)));next()});
- const uploadDir=path.resolve(process.env.DATA_DIR||'data','uploads');fs.mkdirSync(uploadDir,{recursive:true,mode:0o700});
+ const storage=require('./src/storage');
  const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:10*1024*1024,files:1}});
  app.post(['/api/file-upload','/api/picture-upload','/api/upload-recovery-document'],rateLimit({windowMs:60000,limit:12}),upload.any(),wrap(async(req,res)=>{
   if(req.files?.length!==1)fail(400,'Choose one document');const file=req.files[0];const ext=path.extname(file.originalname).toLowerCase();const type=await import('file-type').then(m=>m.fileTypeFromBuffer(file.buffer));
   const allowed={'.pdf':'application/pdf','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.doc':'application/x-cfb','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document'};
   if(!allowed[ext]||allowed[ext]!==type?.mime)fail(400,'Use a valid PDF, PNG, JPG, DOC or DOCX document');
-  const name=crypto.randomUUID()+ext;fs.writeFileSync(path.join(uploadDir,name),file.buffer,{mode:0o600});await require('./src/models/file.model').create({name,original:path.basename(file.originalname),ownerId:req.session.user?.id,role:req.session.user?.role,sessionId:req.session.user?undefined:req.sessionID});
+  const File=require('./src/models/file.model');
+  if(!req.session.user&&await File.countDocuments({sessionId:req.sessionID})>=3)fail(429,'Complete registration before uploading more documents');
+  const name=crypto.randomUUID()+ext;await storage.save(name,file.buffer,type.mime);
+  try{await File.create({name,original:path.basename(file.originalname),ownerId:req.session.user?.id,role:req.session.user?.role,sessionId:req.session.user?undefined:req.sessionID});}catch(error){await storage.remove(name);throw error;}
   res.json({success:true,image:name,fileName:name,filePath:'/uploads/'+name,fileUrl:'/uploads/'+name,originalName:file.originalname});
  }));
- app.get('/uploads/:name',wrap(async(req,res)=>{if(!/^[\w.-]+$/.test(req.params.name)||!await fileAccess(req,req.params.name))fail(404,'File not found');res.set('Cache-Control','private, no-store');res.download(path.join(uploadDir,req.params.name))}));
+ app.get('/uploads/:name',wrap(async(req,res)=>{if(!/^[\w.-]+$/.test(req.params.name)||!await fileAccess(req,req.params.name))fail(404,'File not found');res.set('Cache-Control','private, no-store');await storage.download(req.params.name,res)}));
  app.use('/api/client-portal',require('./src/portal'));app.use('/api/payu',require('./src/payments').router);app.use('/api',require('./src/wallet').router);
  const mount=(name,spec)=>{const c=require('./src/controller/'+name+'.controller');for(const [method,url,handler]of spec)app[method]('/api/'+url,allow('admin'),wrap(c[handler]))};
  mount('client',[['get','get-client-byid/:id','GetClientByid'],['post','client-update/:id','UpdateClient'],['post','update-client-basic/:id','UpdateClientBasic'],['post','update-client-status/:id','UpdateClientStatus'],['get','delete-client/:id','DeleteClient']]);
@@ -44,7 +47,7 @@ function createApp({sessionStore}={}){
  app.get('/api/payment-ledger',allow('admin'),wrap(async(req,res)=>res.json({success:true,data:await require('./src/models/clientPayment.model').ClientPayment.find().sort({createdAt:-1})})));
  app.post('/api/payment-ledger/:id/verify',allow('admin'),wrap(async(req,res)=>{const {ClientPayment}=require('./src/models/clientPayment.model');if(!req.body.reference?.trim())fail(400,'A reconciliation reference is required');await require('mongoose').connection.transaction(async session=>{const p=await ClientPayment.findOneAndUpdate({_id:req.params.id,status:'Pending',method:{$ne:'PayU'}},{$set:{status:'Paid',reconciliationReference:req.body.reference,verifiedBy:req.session.user.id,verifiedAt:new Date()}},{new:true,session});if(!p)fail(409,'Payment is missing, already processed or requires a PayU callback');await ClientNotice.updateOne({clientId:p.clientId,noticeId:p.noticeId},{$set:{paymentStatus:'Paid',draftStatus:'Generated'}},{session});});res.json({success:true})}));
  app.get('/api/integrations',allow('admin'),(_req,res)=>res.json({success:true,data:[{service:'AI drafting',status:process.env.OPENAI_API_KEY?'Configured':'Not configured — preliminary template fallback'},{service:'SMTP email',status:process.env.SMTP_HOST&&process.env.SMTP_FROM?'Configured':'Not configured'},{service:'PayU',status:process.env.PAYU_KEY&&process.env.PAYU_SALT?'Configured':'Not configured'},{service:'Courier',status:'Manual administrator records'}]}));
- app.get('/api/health',(_req,res)=>res.json({success:true,status:require('mongoose').connection.readyState===1?'ok':'database unavailable'}));
+ app.get('/api/health',(_req,res)=>{const ready=require('mongoose').connection.readyState===1;res.status(ready?200:503).json({success:ready,status:ready?'ok':'database unavailable'})});
  app.use('/api',(_req,res)=>res.status(404).json({success:false,message:'API endpoint not found'}));
  const dist=path.join(__dirname,'../client/dist');app.use(express.static(dist));app.get('*',(_req,res)=>res.sendFile(path.join(dist,'index.html')));
  app.use((err,req,res,next)=>{if(res.headersSent)return next(err);const status=err.status||(['CastError','ValidationError'].includes(err.name)||err instanceof multer.MulterError?400:500);if(status===500)console.error('Request failed:',err.name);res.status(status).json({success:false,message:status===500?'Unable to complete request. Please try again.':err.message})});
