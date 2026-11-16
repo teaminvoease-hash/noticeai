@@ -68,4 +68,6 @@ npm run test:integration  # full workflow on an isolated MongoDB replica set
 
 Integration tests use an ephemeral replica set by default (downloads a MongoDB binary), or `TEST_MONGODB_URI` for a **dedicated disposable test database**, which the test drops. Never point it at staging or production. GitHub Actions starts an isolated MongoDB replica set and runs the full suite.
 
-Local security tests and production build were verified. The managed environment blocked MongoDB binary downloads and browser-preview routing, so local real-database integration and visual QA could not be completed there. Live PayU, SMTP, AI, KYC approval and bank payout were not exercised using production credentials.
+Four local security tests and the production build were verified. The four MongoDB workflow tests also passed in GitHub Actions. The managed environment blocked MongoDB binary downloads and browser-preview routing, so local real-database integration and visual QA could not be completed there. Live PayU, SMTP, AI, KYC approval and bank payout were not exercised using production credentials.
+
+Dependency upgrades replace vulnerable PDF, email, file-detection, router and rich-text packages from the recovered implementation. The latest audit reports no critical, high or moderate advisories; two low-severity Quill-related advisories remain. Rich-text previews and saved draft HTML are sanitised at rendering and server-write boundaries.
