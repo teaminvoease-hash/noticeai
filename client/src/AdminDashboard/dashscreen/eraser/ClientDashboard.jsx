@@ -1,3 +1,5 @@
+import WorkflowBoard from '../../../WorkflowBoard';
+import {AuthorityPanel} from '../../../Authority';
 import {signOut} from '../../../session';
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -31,8 +33,6 @@ const ClientDashboard = () => {
   const { userData } = useSelector((store) => store.userReducer);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [showAuthorityModal, setShowAuthorityModal] = useState(false);
-  const [checkingAuthorityLetter, setCheckingAuthorityLetter] = useState(true);
   const [notices, setNotices] = useState([]);
   const [payments, setPayments] = useState([]);
   const [documents, setDocuments] = useState([]);
@@ -61,54 +61,6 @@ const ClientDashboard = () => {
   }, [clientName]);
 
   const todayLabel = useMemo(() => formatTodayLabel(), []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const checkAuthorityLetterStatus = async () => {
-      if (!clientId) {
-        if (isMounted) {
-          setShowAuthorityModal(false);
-          setCheckingAuthorityLetter(false);
-        }
-        return;
-      }
-
-      setCheckingAuthorityLetter(true);
-
-      const localAuthorityLetter = String(userData?.authorityLetter || "").trim();
-      if (localAuthorityLetter) {
-        if (isMounted) {
-          setShowAuthorityModal(false);
-          setCheckingAuthorityLetter(false);
-        }
-        return;
-      }
-
-      try {
-        const result = await fetchData(`${END_POINT.ClientPortalGetProfile}${clientId}`, METHODS.GET);
-        const authorityLetter = String(result?.data?.authorityLetter || "").trim();
-
-        if (isMounted) {
-          setShowAuthorityModal(!authorityLetter);
-        }
-      } catch (error) {
-        if (isMounted) {
-          setShowAuthorityModal(true);
-        }
-      } finally {
-        if (isMounted) {
-          setCheckingAuthorityLetter(false);
-        }
-      }
-    };
-
-    checkAuthorityLetterStatus();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [clientId, userData?.authorityLetter]);
 
   useEffect(() => {
     if (!clientId) return;
@@ -214,7 +166,7 @@ const ClientDashboard = () => {
             </div>
           </header>
 
-          <div className="app-content"><section className="getting-started"><div><p className="eyebrow">YOUR NEXT STEP</p><h2>Start with the facts. Track every handoff.</h2><p>Add your business authority letter, save the recipient and describe your matter.</p></div><div className="start-steps"><Link to="/client-profile">01 · Complete your profile →</Link><Link to="/client-defaulters-create">02 · Add a recipient →</Link><Link to="/client-notice-submission">03 · Request a notice →</Link></div></section>
+          <div className="app-content"><AuthorityPanel clientId={clientId} compact/><WorkflowBoard/><section className="getting-started"><div><p className="eyebrow">YOUR NEXT STEP</p><h2>Start with the facts. Track every handoff.</h2><p>Add your business authority letter, save the recipient and describe your matter.</p></div><div className="start-steps"><Link to="/client-profile">01 · Complete your profile →</Link><Link to="/client-defaulters-create">02 · Add a recipient →</Link><Link to="/client-notice-submission">03 · Request a notice →</Link></div></section>
             <section
               className="panel"
               style={{
@@ -384,27 +336,7 @@ const ClientDashboard = () => {
         </section>
       </main>
 
-      {!checkingAuthorityLetter && showAuthorityModal && (
-        <div className="mandatory-modal" id="authorityModal">
-          <div className="mandatory-modal-card">
-            <button className="mandatory-modal-close" id="closeAuthorityModal" type="button" onClick={() => setShowAuthorityModal(false)}>x</button>
-            <div className="mandatory-modal-alert">Mandatory Action</div>
-            <h3>Authority Letter Required</h3>
-            <p>Please upload Authority Letter. This is mandatory before payment and draft generation.</p>
-            <button
-              className="btn btn-primary"
-              id="goToProfileBtn"
-              type="button"
-              onClick={() => {
-                setShowAuthorityModal(false);
-                navigate("/client-profile");
-              }}
-            >
-              Upload Now
-            </button>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 };

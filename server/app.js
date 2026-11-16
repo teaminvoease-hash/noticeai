@@ -28,6 +28,7 @@ function createApp({sessionStore}={}){
   res.json({success:true,image:name,fileName:name,filePath:'/uploads/'+name,fileUrl:'/uploads/'+name,originalName:file.originalname});
  }));
  app.get('/uploads/:name',wrap(async(req,res)=>{if(!/^[\w.-]+$/.test(req.params.name)||!await fileAccess(req,req.params.name))fail(404,'File not found');res.set('Cache-Control','private, no-store');await storage.download(req.params.name,res)}));
+ app.use('/api/authority',require('./src/authority'));
  app.use('/api/client-portal',require('./src/portal'));app.use('/api/payu',require('./src/payments').router);app.use('/api',require('./src/wallet').router);
  const mount=(name,spec)=>{const c=require('./src/controller/'+name+'.controller');for(const [method,url,handler]of spec)app[method]('/api/'+url,allow('admin'),wrap(c[handler]))};
  mount('client',[['get','get-client-byid/:id','GetClientByid'],['post','client-update/:id','UpdateClient'],['post','update-client-basic/:id','UpdateClientBasic'],['post','update-client-status/:id','UpdateClientStatus'],['get','delete-client/:id','DeleteClient']]);

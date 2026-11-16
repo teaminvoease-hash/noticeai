@@ -20,12 +20,12 @@ async function fileAccess(req,name){
  if(notices.some(n=>[n.authorityLetter,n.supportingDocument,n.signedFile,n.proofOfDelivery].includes(name)))return true;
  if(await ClientDocument.exists({noticeId:{$in:codes},$or:[{fileName:name},{responseFiles:name}]}))return true;
  if(await ClientDefaulter.exists({clientId:{$in:user.role==='client'?[user.id]:clients},agreementFile:name}))return true;
- if(await Client.exists({_id:{$in:user.role==='client'?[user.id]:clients},authorityLetter:name}))return true;
+ if(await Client.exists({_id:{$in:user.role==='client'?[user.id]:clients},$or:[{authorityLetter:name},{authorityTemplate:name}]}))return true;
  if(user.role==='client'&&await Lawyer.exists({_id:{$in:notices.map(n=>n.lawyerId).filter(Boolean)},signatureImage:name}))return true;
  return false;
 }
 async function checkFiles(req){
- const fields=['authorityLetter','supportingDocument','fileName','aadhaarFile','panFile','barIdFile','signatureImage','signedFile','proofOfDelivery','agreementFile'];
+ const fields=['authorityTemplate','authorityLetter','supportingDocument','fileName','aadhaarFile','panFile','barIdFile','signatureImage','signedFile','proofOfDelivery','agreementFile'];
  for(const key of fields){const name=req.body[key];if(name&&(!/^[\w.-]+$/.test(name)||!await fileAccess(req,name)))fail(403,'File is not available to this account');}
  for(const name of req.body.responseFiles||[])if(!await fileAccess(req,name))fail(403,'File is not available to this account');
 }

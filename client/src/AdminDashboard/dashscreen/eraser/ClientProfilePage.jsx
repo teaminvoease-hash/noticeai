@@ -1,10 +1,11 @@
+import {AuthorityPanel} from '../../../Authority';
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import Swal from "sweetalert2";
 import ClientPortalLayout from "./ClientPortalLayout";
 import { END_POINT, METHODS, BASE_URL_IMAGE } from "../../../helper/helper";
-import { fetchData, FileUpload, ImageUpload } from "../../../helper/ApiCall";
+import { fetchData } from "../../../helper/ApiCall";
 import { userdataUpdate } from "../../../redux/reducers/userReducer";
 
 const ClientProfilePage = () => {
@@ -13,7 +14,7 @@ const ClientProfilePage = () => {
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [uploadingAuthority, setUploadingAuthority] = useState(false);
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -74,49 +75,6 @@ const ClientProfilePage = () => {
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleAuthorityUpload = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setUploadingAuthority(true);
-    try {
-      let uploadResult;
-      if (String(file.type).startsWith("image/")) {
-        uploadResult = await ImageUpload(file);
-      } else {
-        uploadResult = await FileUpload(file);
-      }
-
-      if (uploadResult?.success) {
-        const fileName = uploadResult.fileName || uploadResult.image || "";
-        setFormData((prev) => ({ ...prev, authorityLetter: fileName }));
-        Swal.fire({
-          title: "Uploaded",
-          text: "Authority letter uploaded successfully",
-          icon: "success",
-          confirmButtonColor: "#175c8f",
-        });
-      } else {
-        Swal.fire({
-          title: "Upload Failed",
-          text: uploadResult?.message || "Could not upload authority letter",
-          icon: "error",
-          confirmButtonColor: "#175c8f",
-        });
-      }
-    } catch (error) {
-      Swal.fire({
-        title: "Upload Failed",
-        text: "Could not upload authority letter",
-        icon: "error",
-        confirmButtonColor: "#175c8f",
-      });
-    } finally {
-      setUploadingAuthority(false);
-      event.target.value = "";
-    }
-  };
-
   const handleSave = async (e) => {
     e.preventDefault();
     if (!clientId) {
@@ -139,15 +97,6 @@ const ClientProfilePage = () => {
       return;
     }
 
-    if (!formData.authorityLetter.trim()) {
-      Swal.fire({
-        title: "Authority Letter Required",
-        text: "Please upload authority letter before saving profile",
-        icon: "warning",
-        confirmButtonColor: "#175c8f",
-      });
-      return;
-    }
 
     if (formData.newPassword || formData.confirmPassword) {
       if (formData.newPassword !== formData.confirmPassword) {
@@ -171,7 +120,6 @@ const ClientProfilePage = () => {
         city: formData.city.trim(),
         state: formData.state.trim(),
         pincode: formData.pincode.trim(),
-        authorityLetter: formData.authorityLetter.trim(),
       };
 
       if (formData.newPassword.trim()) {
@@ -186,7 +134,7 @@ const ClientProfilePage = () => {
 
       if (result?.success) {
         if (result?.data) {
-          dispatch(userdataUpdate(result.data));
+          dispatch(userdataUpdate({...result.data,role:"client"}));
           applyProfile(result.data);
         }
         Swal.fire({
@@ -223,6 +171,7 @@ const ClientProfilePage = () => {
       actions={<Link className="btn btn-light" to="/client-dashboard">Dashboard</Link>}
       showFooter
     >
+      <AuthorityPanel clientId={clientId}/>
       <article className="form-panel">
         <h3>Basic Details</h3>
         <form className="crud-form" onSubmit={handleSave}>
@@ -296,19 +245,6 @@ const ClientProfilePage = () => {
             value={formData.confirmPassword}
             onChange={(e) => handleFieldChange("confirmPassword", e.target.value)}
           />
-
-          <label>Authority Letter (Mandatory)</label>
-          <input
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png"
-            onChange={handleAuthorityUpload}
-            disabled={uploadingAuthority}
-          />
-          {formData.authorityLetter ? (
-            <p className="pagination-meta">
-              Current file: <a href={`${BASE_URL_IMAGE}${formData.authorityLetter}`} target="_blank" rel="noreferrer">{formData.authorityLetter}</a>
-            </p>
-          ) : null}
 
           <div className="crud-actions">
             <button type="submit" className="btn btn-primary" disabled={saving || loading}>
