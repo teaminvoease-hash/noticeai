@@ -148,7 +148,7 @@ const ClientDefaultersCreatePage = () => {
   return (
     <ClientPortalLayout
       activeKey="createDefaulter"
-      title={isEditMode ? "Edit Defaulter" : "Create Defaulter"}
+      title={isEditMode ? "Edit Defaulter" : "Add Recipient"}
       subtitle="Create and update defaulter records for notice and recovery workflows."
       actions={<><Link className="btn btn-light" to="/client-defaulters">Defaulters Display</Link><Link className="btn btn-light" to="/client-dashboard">Dashboard</Link></>}
     >
@@ -181,7 +181,7 @@ const ClientDefaultersCreatePage = () => {
 
           <div className="crud-actions">
             <button type="submit" className="btn btn-primary" disabled={loading || submitting}>
-              {loading ? "Loading..." : submitting ? (isEditMode ? "Updating..." : "Creating...") : (isEditMode ? "Update Defaulter" : "Create Defaulter")}
+              {loading ? "Loading..." : submitting ? (isEditMode ? "Updating..." : "Creating...") : (isEditMode ? "Update Defaulter" : "Add Recipient")}
             </button>
           </div>
         </form>

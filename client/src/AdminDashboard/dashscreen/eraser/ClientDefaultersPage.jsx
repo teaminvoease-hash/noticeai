@@ -72,9 +72,9 @@ const ClientDefaultersPage = () => {
   return (
     <ClientPortalLayout
       activeKey="defaulters"
-      title="My Defaulters"
+      title="Recipients"
       subtitle="Display and manage defaulter records created by your client account."
-      actions={<><Link className="btn btn-light" to="/client-defaulters-create">Create Defaulter</Link><Link className="btn btn-light" to="/client-dashboard">Dashboard</Link></>}
+      actions={<><Link className="btn btn-light" to="/client-defaulters-create">Add Recipient</Link><Link className="btn btn-light" to="/client-dashboard">Dashboard</Link></>}
     >
       <article className="table-panel">
         <div className="search-row">
