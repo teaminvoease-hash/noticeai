@@ -7,12 +7,32 @@ test('server-side auth, session rotation, role guards and CSRF',async()=>{assert
 test('full client intake, payment verification, assignment and document ownership',async()=>{
  const s=await client.get('/api/session');const upload=await client.post('/api/file-upload').set('X-CSRF-Token',s.body.csrf).attach('file',Buffer.from('%PDF-1.7\n%%EOF'),{filename:'authority.pdf',contentType:'application/pdf'});assert.equal(upload.body.success,true,JSON.stringify(upload.body));const name=upload.body.fileName;
  assert.equal((await other.get('/uploads/'+name)).status,404);
- assert.equal((await call(client,'post','/api/client-portal/profile/'+clientUser._id,{authorityLetter:name})).body.success,true);
+ const authorityUrl='/api/authority/'+clientUser._id;
+ assert.equal((await other.get(authorityUrl)).status,404);
+ assert.equal((await call(client,'post',authorityUrl,{action:'approve',expectedFile:name})).status,403);
+ assert.equal((await call(client,'post',authorityUrl,{action:'submit',authorityLetter:name})).body.data.authorityStatus,'pending');
+ assert.equal((await client.get(authorityUrl)).body.data.authorityLetter,name);
+ const tSession=await admin.get('/api/session');const template=await admin.post('/api/file-upload').set('X-CSRF-Token',tSession.body.csrf).attach('file',Buffer.from('%PDF-1.7\n%%EOF'),{filename:'letter-to-sign.pdf',contentType:'application/pdf'});
+ assert.equal((await call(admin,'post',authorityUrl,{action:'template',authorityTemplate:template.body.fileName})).body.success,true);
+ assert.equal((await client.get('/uploads/'+template.body.fileName)).status,200);
+ assert.equal((await other.get('/uploads/'+template.body.fileName)).status,404);
+ assert.equal((await call(admin,'post',authorityUrl,{action:'approve',expectedFile:'old.pdf'})).status,409);
+ assert.equal((await call(admin,'post',authorityUrl,{action:'changes',expectedFile:name})).status,400);
+ assert.equal((await call(admin,'post',authorityUrl,{action:'changes',expectedFile:name,feedback:'Please sign page 2.'})).body.data.authorityStatus,'changes_required');
+ assert.equal((await call(client,'post',authorityUrl,{action:'submit',authorityLetter:name})).body.data.authorityStatus,'pending');
+
  const d=await call(client,'post','/api/client-portal/defaulters',{name:'Recipient',email:'recipient@example.test',phone:'9999999999',companyName:'Recipient Ltd',address:'Sample Address',totalDueAmount:1000,lastInvoiceDate:'2026-01-01'});assert.equal(d.body.success,true,JSON.stringify(d.body));
  const n=await call(client,'post','/api/client-portal/notices',{subject:'Invoice demand',category:'Invoice',defaulterId:d.body.data._id,caseSummary:'Invoice remains unpaid after the agreed date.'});assert.equal(n.body.success,true,JSON.stringify(n.body));const id=n.body.data._id,code=n.body.data.noticeId;
  assert.equal((await other.get('/api/client-portal/notices')).body.data.length,0);
  assert.equal((await call(other,'put','/api/client-portal/notices/'+id,{clientId:clientUser._id})).status,403);
+ assert.equal((await other.get('/api/client-portal/workflow')).body.data.length,0);
+ assert.equal((await client.get('/api/client-portal/workflow')).body.data[0].workflow.owner,'admin');
  const pricing=await call(admin,'post','/api/create-admin-payment',{paymentScope:'global',totalAmount:1000,platformFee:200,advocateFee:800,status:'verified'});assert.equal(pricing.body.success,true);
+ assert.equal((await call(client,'post','/api/payu/initiate',{noticeId:code})).status,409);
+ assert.equal((await call(client,'post','/api/client-portal/payments',{noticeId:code,method:'Bank Transfer',amount:1000})).status,409);
+ assert.equal((await call(admin,'post',authorityUrl,{action:'approve',expectedFile:name})).body.data.authorityStatus,'approved');
+ assert.equal((await call(client,'post','/api/client-portal/profile/'+clientUser._id,{name:'Updated name',authorityLetter:name})).body.success,true);
+ assert.equal((await client.get(authorityUrl)).body.data.authorityStatus,'approved');
  const payment=await call(client,'post','/api/payu/initiate',{noticeId:code});assert.equal(payment.body.success,true,JSON.stringify(payment.body));const data=payment.body.data;
  assert.equal((await call(other,'post','/api/payu/initiate',{noticeId:code})).status,404);
  const callback={...data,status:'success'};callback.hash=require('../server/src/payments').responseHash(callback,'test-salt','test-key');
@@ -20,6 +40,7 @@ test('full client intake, payment verification, assignment and document ownershi
  assert.equal((await request(app).post('/api/payu/success').send(callback)).status,302);assert.equal((await request(app).post('/api/payu/success').send(callback)).status,302);
  const assignment=await call(admin,'post','/api/client-portal/notices/'+id+'/assign-lawyer',{lawyerId:lawyerUser.id});assert.equal(assignment.body.success,true,JSON.stringify(assignment.body));
  assert.equal((await lawyer.get('/api/client-portal/notices')).body.data.length,1);
+ assert.equal((await lawyer.get('/api/client-portal/workflow')).body.data[0].workflow.step,3);
  const reopenedApp=require('../server/app').createApp({sessionStore:new(require('express-session').MemoryStore)()});
  const resumedLawyer=request.agent(reopenedApp);await call(resumedLawyer,'post','/api/auth/lawyer/login',{email:'lawyer@example.test',password:'Testing-password-123'});
  const download=await resumedLawyer.get('/uploads/'+name);assert.equal(download.status,200);assert.equal(download.headers['content-type'],'application/pdf');
@@ -33,9 +54,15 @@ test('full client intake, payment verification, assignment and document ownershi
  const signSession=await lawyer.get('/api/session');const signed=await lawyer.post('/api/file-upload').set('X-CSRF-Token',signSession.body.csrf).attach('file',Buffer.from('%PDF-1.7\n%%EOF'),{filename:'signed.pdf',contentType:'application/pdf'});
  assert.equal((await call(lawyer,'post','/api/client-portal/notices/'+id+'/signed-file',{signedFile:signed.body.fileName})).body.success,true);
  assert.equal((await client.get('/api/client-portal/downloads')).body.data.length,1);
+ assert.equal((await call(lawyer,'post','/api/client-portal/notices/'+id+'/generated-notice',{generatedNotice:'Changed after signing'})).status,409);
+ assert.equal((await call(admin,'post','/api/client-portal/notices/'+id+'/status',{status:'pending'})).status,409);
+ assert.equal((await call(admin,'post','/api/client-portal/notices/'+id+'/assign-lawyer',{lawyerId:otherLawyerUser.id})).status,409);
+ assert.equal((await call(admin,'post','/api/client-portal/notices/'+id+'/delivery',{deliveryStatus:'In Transit'})).status,400);
+
  assert.equal((await call(client,'post','/api/client-portal/notices/'+id+'/delivery',{deliveryStatus:'Delivered'})).status,403);
  assert.equal((await call(admin,'post','/api/client-portal/notices/'+id+'/delivery',{courier:'Recorded carrier',trackingId:'REAL-REF',deliveryStatus:'In Transit',dispatchDate:'2026-11-16'})).body.success,true);
  assert.equal((await client.get('/api/client-portal/delivery-tracking')).body.data[0].trackingId,'REAL-REF');
+ assert.equal((await client.get('/api/client-portal/workflow')).body.data[0].workflow.label,'In transit — update delivery');
 });
 test('wallet reservation blocks overspending and duplicate processing',async()=>{const credit=await call(admin,'post','/api/wallet/credit',{lawyerId:lawyerUser.id,amount:500,note:'Verified fee reference'});assert.equal(credit.body.success,true);const withdrawal=await call(lawyer,'post','/api/create-admin-withdrawal',{amount:400,bankAccount:'1234567890',ifsc:'TEST0000001',status:'approved'});assert.equal(withdrawal.body.data.status,'pending');assert.equal((await call(lawyer,'post','/api/create-admin-withdrawal',{amount:200,bankAccount:'123',ifsc:'TEST'})).status,409);const id=withdrawal.body.data._id;assert.equal((await call(admin,'post','/api/update-admin-withdrawal/'+id,{status:'rejected'})).body.success,true);assert.equal((await call(admin,'post','/api/update-admin-withdrawal/'+id,{status:'rejected'})).status,409);assert.equal((await lawyer.get('/api/wallet')).body.data.balance,500)});
 test('logout destroys the session',async()=>{assert.equal((await call(other,'post','/api/logout')).body.success,true);assert.equal((await other.get('/api/client-portal/notices')).status,401)});

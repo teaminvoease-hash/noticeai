@@ -7,6 +7,7 @@ const router=express.Router();
 router.post('/initiate',allow('client'),wrap(async(req,res)=>{
  if(!process.env.PAYU_KEY||!process.env.PAYU_SALT)fail(503,'PayU is not configured');
  const n=await noticeAccess(req,req.body.noticeId,true);if(n.paymentStatus==='Paid')fail(409,'This notice has already been paid');
+ await require('./authority').requireAuthority(n.clientId);
  const pricing=await AdminPayment.findOne({paymentScope:'per_client',clientId:req.session.user.id}).sort({updatedAt:-1})||await AdminPayment.findOne({paymentScope:'global'}).sort({updatedAt:-1});
  if(!pricing||!Number.isFinite(pricing.totalAmount)||pricing.totalAmount<=0)fail(409,'Ask the administrator to configure pricing');
  const client=await require('./models/client.model').Client.findById(req.session.user.id);

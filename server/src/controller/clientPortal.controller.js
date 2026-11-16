@@ -1092,7 +1092,10 @@ const updateClientProfile = async (req, res) => {
     if (typeof req.body.city !== "undefined") update.city = req.body.city;
     if (typeof req.body.state !== "undefined") update.state = req.body.state;
     if (typeof req.body.pincode !== "undefined") update.pincode = req.body.pincode;
-    if (typeof req.body.authorityLetter !== "undefined") update.authorityLetter = req.body.authorityLetter;
+    if (typeof req.body.authorityLetter !== "undefined") {
+      const current=await Client.findById(req.params.clientId);
+      if(req.body.authorityLetter!==current.authorityLetter){update.authorityLetter=req.body.authorityLetter;update.authorityStatus=req.body.authorityLetter?'pending':'missing';update.authorityFeedback='';update.authoritySubmittedAt=new Date();update.authorityReviewedAt=null;update.authorityReviewedBy='';}
+    }
 
     if (req.body.password && String(req.body.password).trim()) {
       update.password = bcrypt.hashSync(String(req.body.password).trim(), 10);

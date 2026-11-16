@@ -1,3 +1,4 @@
+import WorkflowBoard from '../../../WorkflowBoard';
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -130,8 +131,10 @@ const LawyerDashboard = () => {
       activeKey="dashboard"
       title={`Welcome, ${lawyerName}`}
       subtitle={`${todayLabel()} - Review notices, request documents, and track wallet earnings.`}
-      actions={<Link className="btn btn-primary" to="/lawyer-assigned-notices">Open Assigned Case</Link>}
+      actions={<Link className="btn btn-primary" to="/lawyer-assigned-notices">
+Open Assigned Case</Link>}
     >
+      <WorkflowBoard/>
             <section className="stat-grid">
               <article className="stat-item">
                 <p className="k">Assigned Notices</p>

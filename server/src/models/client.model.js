@@ -16,6 +16,12 @@ const clientSchema = new Schema(
         password: { type: String },
         status: { type: String, default: "onboard" },
         authorityLetter: { type: String },
+        authorityTemplate: String,
+        authorityStatus: {type:String, enum:['missing','pending','approved','changes_required'],default:'missing'},
+        authorityFeedback: String,
+        authoritySubmittedAt: Date,
+        authorityReviewedAt: Date,
+        authorityReviewedBy: String,
     
         // Profile
         profile_pic: { type: String },

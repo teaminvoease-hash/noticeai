@@ -1,3 +1,4 @@
+import WorkflowBoard from '../../../WorkflowBoard';
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminPortalLayout from "./AdminPortalLayout";
@@ -117,6 +118,7 @@ const AdminDashboard = () => {
       title="Admin Dashboard"
       subtitle="Monitor live platform counts, recent notice activity, fee configuration, and document updates."
     >
+      <WorkflowBoard/>
             <section className="stat-grid">
               <article className="stat-item">
                 <p className="k">Clients</p>
