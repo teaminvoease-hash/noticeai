@@ -568,15 +568,18 @@ const assignNoticeToLawyer = async (req, res) => {
 
     const client = await Client.findById(notice.clientId).select("name email owner_name ownerName");
 
-    const updated = await ClientNotice.findByIdAndUpdate(
-      req.params.id,
+    const updated = await ClientNotice.findOneAndUpdate(
+      {_id:notice._id,updatedAt:notice.updatedAt,signedFile:{$in:[null, ""]}},
       {
+        ...(String(notice.lawyerId)!==String(lawyer._id)?{status:"pending"}:{}),
         lawyerId: String(lawyer._id),
         lawyerName: lawyer.name || "",
         lawyerCode: lawyer.advocate_id || "",
       },
       { new: true }
     );
+
+    if(!updated)return res.status(409).json({success:false,message:"The matter changed or was signed. Refresh before assignment."});
 
     await sendNoticeAssignedEmails({
       lawyer,
@@ -731,7 +734,10 @@ const uploadDocument = async (req, res) => {
     const normalizedRole = String(requestedByRole || "client").toLowerCase();
     const resolvedStatus = status || (normalizedRole === "lawyer" ? "sent" : "Requested");
 
-    const created = await ClientDocument.create({
+    let created;
+    await require("mongoose").connection.transaction(async session=>{
+      await require("../matterServices").lockDocumentMatter(req,req.documentMatter,session);
+      [created] = await ClientDocument.create([{
       clientId,
       noticeId,
       docId: buildId("DOC"),
@@ -743,6 +749,8 @@ const uploadDocument = async (req, res) => {
       requestedById: requestedById || "",
       responseFiles: Array.isArray(responseFiles) ? responseFiles : [],
       status: resolvedStatus,
+    }],{session});
+      await require("../matterServices").event(req,req.documentMatter,resolvedStatus==='Uploaded'?'Documents uploaded':'Document requested',type,session);
     });
 
     if (normalizedRole === "lawyer" && String(clientEmail || "").trim()) {
@@ -774,7 +782,7 @@ Legal Notice Platform
 
     return res.status(200).json({ success: true, message: "Document uploaded successfully", data: created });
   } catch (err) {
-    return res.status(400).json({ success: false, message: "Error: " + err.message });
+    return res.status(err.status||400).json({ success: false, message: err.status?err.message:"Unable to save this document." });
   }
 };
 
@@ -842,26 +850,16 @@ const createPayment = async (req, res) => {
       return res.status(200).json({ success: false, message: "clientId, noticeId, amount and method are required" });
     }
 
-    const created = await ClientPayment.create({
-      clientId,
-      noticeId,
-      txnId: buildId("TXN"),
-      amount,
-      method,
-      billingEmail: billingEmail || "",
-      receiptFileName: `${noticeId}_receipt.pdf`,
-      status: "Pending",
+    let created;
+    await require('mongoose').connection.transaction(async session=>{
+      const changed=await ClientNotice.findOneAndUpdate({_id:req.paymentMatter._id,clientId,updatedAt:req.paymentMatter.updatedAt,paymentStatus:{$ne:'Paid'}},{$set:{paymentStatus:'Pending'}},{new:true,session});
+      if(!changed)throw Object.assign(new Error('The payment state changed. Refresh before recording another payment.'),{status:409});
+      [created]=await ClientPayment.create([{clientId,noticeId,txnId:buildId('TXN'),amount,method,billingEmail:billingEmail||'',status:'Pending'}],{session});
     });
-
-    await ClientNotice.findOneAndUpdate(
-      { noticeId },
-      { paymentStatus: "Pending" },
-      { new: true }
-    );
 
     return res.status(200).json({ success: true, message: "Payment recorded successfully", data: created });
   } catch (err) {
-    return res.status(400).json({ success: false, message: "Error: " + err.message });
+    return res.status(err.status||400).json({ success: false, message: err.status?err.message:"Unable to record payment." });
   }
 };
 
@@ -983,10 +981,10 @@ const updateClientProfile = async (req, res) => {
       update.password = bcrypt.hashSync(String(req.body.password).trim(), 10);
     }
 
-    const data = await Client.findByIdAndUpdate(req.params.clientId, update, { new: true }).select("-password");
+    const data = await require("../services/accounts").saveAccount(Client,"client",req.params.clientId,update);
     return res.status(200).json({ success: true, message: "Profile updated successfully", data });
   } catch (err) {
-    return res.status(400).json({ success: false, message: "Error: " + err.message });
+    return res.status(err.status||400).json({ success: false, message: "Error: " + err.message });
   }
 };
 

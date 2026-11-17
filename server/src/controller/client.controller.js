@@ -35,7 +35,7 @@ const GetClient = async (req, res, next) => {
             data: Data,
         });
     } catch (err) {
-        res.status(400).json("Error: " + err);
+        res.status(err.status||400).json({success:false,message:err.message});
     }
 };
 // Delete
@@ -48,7 +48,7 @@ const DeleteClient = async (req, res, next) => {
             data: Data,
         });
     } catch (err) {
-        res.status(400).json("Error: " + err);
+        res.status(err.status||400).json({success:false,message:err.message});
     }
 };
 
@@ -61,7 +61,7 @@ const GetClientByid = async (req, res, next) => {
             data: Data,
         });
     } catch (err) {
-        res.status(400).json("Error: " + err);
+        res.status(err.status||400).json({success:false,message:err.message});
     }
 };
 
@@ -105,11 +105,7 @@ const UpdateClient = async (req, res, next) => {
 
         if (Data != undefined) {
 
-            const UpdatedData = await Client.findOneAndUpdate(
-                { _id: req.params.id },
-                updateData,
-                { new: true }
-            );
+            const UpdatedData = await require("../services/accounts").saveAccount(Client,"client",req.params.id,updateData);
             res.status(200).json({
                 success: true,
                 message: "New Client has been updated",
@@ -122,7 +118,7 @@ const UpdateClient = async (req, res, next) => {
             });
         }
     } catch (err) {
-        res.status(400).json("Error: " + err);
+        res.status(err.status||400).json({success:false,message:err.message});
     }
 };
 
@@ -164,7 +160,7 @@ const RegisterClient = async (req, res) => {
             });
         }
     } catch (err) {
-        res.status(400).json("Error: " + err);
+        res.status(err.status||400).json({success:false,message:err.message});
     }
 };
 
@@ -202,11 +198,7 @@ const UpdateClientBasic = async (req, res, next) => {
             updateData.password = bcrypt.hashSync(String(req.body.password).trim(), 10);
         }
 
-        const updated = await Client.findOneAndUpdate(
-            { _id: req.params.id },
-            updateData,
-            { new: true }
-        );
+        const updated = await require("../services/accounts").saveAccount(Client,"client",req.params.id,updateData);
 
         return res.status(200).json({
             success: true,
@@ -214,7 +206,7 @@ const UpdateClientBasic = async (req, res, next) => {
             data: updated,
         });
     } catch (err) {
-        return res.status(400).json("Error: " + err);
+        return res.status(err.status||400).json({success:false,message:err.message});
     }
 };
 
@@ -243,7 +235,7 @@ const UpdateClientStatus = async (req, res, next) => {
             data: DataLast,
         });
     } catch (err) {
-        res.status(400).json("Error: " + err);
+        res.status(err.status||400).json({success:false,message:err.message});
     }
 };
 

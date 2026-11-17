@@ -377,6 +377,7 @@ router.post(
       a.fail(400, "Document title and instructions are required");
     let data;
     await mongoose.connection.transaction(async (session) => {
+      await service.lockDocumentMatter(req,n,session);
       [data] = await a.ClientDocument.create(
         [
           {
@@ -390,11 +391,6 @@ router.post(
             status: "Requested",
           },
         ],
-        { session },
-      );
-      await a.ClientNotice.updateOne(
-        { _id: n._id },
-        { $set: { status: "pending" } },
         { session },
       );
       await service.event(req, n, "Document requested", type, session);

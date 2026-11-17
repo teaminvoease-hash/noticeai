@@ -156,4 +156,58 @@ test('AI proposals remain separate until the assigned advocate reviews the curre
   assert.equal((await call(lawyer,'post','/api/ai/artifacts/'+artifact._id+'/apply',{reviewed:true})).status,409);
  }finally{global.fetch=previous.fetch;for(const [name,value]of[['AI_FEATURES_ENABLED',previous.enabled],['OPENAI_API_KEY',previous.key]]){if(value===undefined)delete process.env[name];else process.env[name]=value}}
 });
+test('authority retries preserve approval and reviewed timestamps',async()=>{
+ // Separate the extended regression fixture from the earlier high-volume journey.
+ // Keep the application's real rate limits enabled on both app instances.
+ app=require('../server/app').createApp({sessionStore:new(require('express-session').MemoryStore)()});admin=request.agent(app);client=request.agent(app);other=request.agent(app);lawyer=request.agent(app);
+ for(const [agent,role,email]of[[admin,'admin','admin@example.test'],[client,'client','client@example.test'],[other,'client','other@example.test'],[lawyer,'lawyer','lawyer@example.test']])assert.equal((await call(agent,'post','/api/auth/'+role+'/login',{email,password:'Testing-password-123'})).status,200);
+
+ const url='/api/authority/'+clientUser._id;const before=(await client.get(url)).body.data;assert.equal(before.authorityStatus,'approved');const retry=await call(client,'post',url,{action:'submit',authorityLetter:before.authorityLetter});assert.equal(retry.status,200);assert.equal(retry.body.data.authorityStatus,'approved');assert.equal(retry.body.data.authorityReviewedAt,before.authorityReviewedAt);assert.equal(retry.body.data.authoritySubmittedAt,before.authoritySubmittedAt);
+});
+test('legacy document intake and advocate reassignment invalidate review and final signing rechecks documents',async()=>{
+ const {ClientNotice,ClientDocument}=require('../server/src/access');const authority=(await client.get('/api/authority/'+clientUser._id)).body.data.authorityLetter;
+ const n=await ClientNotice.create({noticeId:'N-RECHECK-LEGACY',clientId:String(clientUser._id),authorityLetter:authority,category:'Contract',subject:'Document lock review',generatedNotice:'<p>Reviewed source facts</p>',caseSummary:'Synthetic facts for review',paymentStatus:'Paid',lawyerId:lawyerUser.id,status:'approved'});
+ const created=await call(client,'post','/api/client-portal/documents',{noticeId:n.noticeId,type:'Additional source',fileName:authority,requestedByRole:'admin',requestedById:adminUser.id});assert.equal(created.status,200,JSON.stringify(created.body));assert.equal(created.body.data.requestedByRole,'client');assert.equal(created.body.data.requestedById,String(clientUser._id));assert.equal((await ClientNotice.findById(n.id)).status,'pending');
+ assert.equal((await call(lawyer,'post','/api/client-portal/notices/'+n.id+'/status',{status:'approved',revision:0})).status,409);
+ const doc=created.body.data;assert.equal((await call(lawyer,'post','/api/document-requests/'+doc._id+'/review',{revision:0,status:'Reviewed'})).status,200);assert.equal((await call(lawyer,'post','/api/client-portal/notices/'+n.id+'/status',{status:'approved',revision:0})).status,200);
+ const reassign=await call(admin,'post','/api/client-portal/notices/'+n.id+'/assign-lawyer',{lawyerId:otherLawyerUser.id});assert.equal(reassign.status,200);assert.equal(reassign.body.data.status,'pending');assert.equal((await lawyer.get('/api/matters/'+n.id)).status,404);
+ const reviewer=request.agent(app);assert.equal((await call(reviewer,'post','/api/auth/lawyer/login',{email:'lawyer2@example.test',password:'Testing-password-123'})).status,200);
+ assert.equal((await call(reviewer,'post','/api/client-portal/notices/'+n.id+'/status',{status:'approved',revision:0})).status,200);
+ const sess=await reviewer.get('/api/session');const final=await reviewer.post('/api/file-upload').set('X-CSRF-Token',sess.body.csrf).attach('file',Buffer.from('%PDF-1.7\n%%EOF'),{filename:'final-review.pdf',contentType:'application/pdf'});assert.equal(final.body.success,true);
+ // Simulate a pre-upgrade inconsistent record: approval plus an unreviewed document.
+ const dirty=await ClientDocument.create({noticeId:n.noticeId,clientId:String(clientUser._id),docId:'DOC-LEGACY-UNREVIEWED',type:'Legacy file',status:'Uploaded',fileName:authority});
+ assert.equal((await call(reviewer,'post','/api/client-portal/notices/'+n.id+'/signed-file',{signedFile:final.body.fileName,revision:0})).status,409);
+ assert.equal((await call(reviewer,'post','/api/document-requests/'+dirty.id+'/review',{revision:0,status:'Reviewed'})).status,200);assert.equal((await call(reviewer,'post','/api/client-portal/notices/'+n.id+'/status',{status:'approved',revision:0})).status,200);
+ assert.equal((await call(reviewer,'post','/api/client-portal/notices/'+n.id+'/signed-file',{signedFile:final.body.fileName,revision:0})).status,200);
+ assert.equal((await call(client,'post','/api/client-portal/documents',{noticeId:n.noticeId,type:'Late file',fileName:authority})).status,409);assert.equal((await call(reviewer,'post','/api/matters/'+n.id+'/document-requests',{type:'Late request',requestMessage:'Should be frozen'})).status,409);
+});
+test('concurrent final signing and legacy document intake cannot both commit',async()=>{
+ const {ClientNotice,ClientDocument}=require('../server/src/access');const authority=(await client.get('/api/authority/'+clientUser._id)).body.data.authorityLetter;
+ const n=await ClientNotice.create({noticeId:'N-RECHECK-RACE',clientId:String(clientUser._id),authorityLetter:authority,category:'Contract',subject:'Race guard',generatedNotice:'<p>Reviewed draft</p>',paymentStatus:'Paid',lawyerId:lawyerUser.id,status:'approved'});
+ const sess=await lawyer.get('/api/session');const uploaded=await lawyer.post('/api/file-upload').set('X-CSRF-Token',sess.body.csrf).attach('file',Buffer.from('%PDF-1.7\n%%EOF'),{filename:'race-final.pdf',contentType:'application/pdf'});assert.equal(uploaded.body.success,true);
+ const results=await Promise.all([call(lawyer,'post','/api/client-portal/notices/'+n.id+'/signed-file',{signedFile:uploaded.body.fileName,revision:0}),call(client,'post','/api/client-portal/documents',{noticeId:n.noticeId,type:'Concurrent evidence',fileName:authority})]);assert.deepEqual(results.map(r=>r.status).sort(),[200,409]);
+ const saved=await ClientNotice.findById(n.id),count=await ClientDocument.countDocuments({noticeId:n.noticeId});if(saved.signedFile){assert.equal(count,0);assert.equal(saved.status,'approved')}else{assert.equal(count,1);assert.equal(saved.status,'pending')}
+});
+test('external payment reconciliation is administrator-only and cannot overwrite a gateway settlement',async()=>{
+ const {ClientNotice}=require('../server/src/access');const authority=(await client.get('/api/authority/'+clientUser._id)).body.data.authorityLetter;
+ const n=await ClientNotice.create({noticeId:'N-RECHECK-EXTERNAL',clientId:String(clientUser._id),authorityLetter:authority,category:'Contract',subject:'Synthetic payment reconciliation',generatedNotice:'Draft'});
+ const body={noticeId:n.noticeId,amount:1000,method:'Bank Transfer',status:'Paid'};
+ const first=await call(client,'post','/api/client-portal/payments',body);assert.equal(first.status,200);assert.equal(first.body.data.status,'Pending');assert.equal(first.body.data.receiptFileName,undefined);
+ const second=await call(client,'post','/api/client-portal/payments',body);assert.equal(second.status,200);
+ const ledger='/api/payment-ledger/'+first.body.data._id+'/verify';assert.equal((await call(client,'post',ledger,{reference:'synthetic-proof'})).status,403);assert.equal((await call(admin,'post',ledger,{})).status,400);assert.equal((await call(admin,'post',ledger,{reference:'synthetic-proof'})).status,200);
+ assert.equal((await call(admin,'post','/api/payment-ledger/'+second.body.data._id+'/verify',{reference:'duplicate-proof'})).status,409);assert.equal((await require('../server/src/models/clientPayment.model').ClientPayment.findById(second.body.data._id)).status,'Pending');
+ const race=await ClientNotice.create({noticeId:'N-RECHECK-SETTLEMENT',clientId:String(clientUser._id),authorityLetter:authority,category:'Contract',subject:'Synthetic settlement race',generatedNotice:'Draft'});
+ const payment=await call(client,'post','/api/payu/initiate',{noticeId:race.noticeId});assert.equal(payment.status,200);const callback={...payment.body.data,status:'success'};callback.hash=require('../server/src/payments').responseHash(callback,'test-salt','test-key');
+ const result=await Promise.all([request(app).post('/api/payu/success').send(callback),call(client,'post','/api/client-portal/payments',{noticeId:race.noticeId,amount:1000,method:'Bank Transfer'})]);assert.equal(result[0].status,302);assert.ok([200,409].includes(result[1].status));assert.equal((await ClientNotice.findById(race.id)).paymentStatus,'Paid');
+});
+test('profile and administrator account changes cannot create duplicate login identities',async()=>{
+ const second=(await other.get('/api/session')).body.user;
+ assert.equal((await call(client,'post','/api/client-portal/profile/'+clientUser._id,{email:'OTHER@EXAMPLE.TEST'})).status,409);
+ assert.equal((await call(admin,'post','/api/update-client-basic/'+clientUser._id,{name:'Example Client',email:'other@example.test'})).status,409);
+ assert.equal((await call(admin,'post','/api/create-lawyer',{name:'Duplicate advocate',email:'LAWYER@EXAMPLE.TEST',password:'Testing-password-123'})).status,409);
+ assert.equal((await call(admin,'post','/api/update-lawyer/'+lawyerUser.id,{email:'lawyer2@example.test'})).status,409);
+ assert.equal((await call(admin,'post','/api/update-client-basic/'+clientUser._id,{password:'short'})).status,400);
+ const email='shared-login@example.test';const results=await Promise.all([call(client,'post','/api/client-portal/profile/'+clientUser._id,{email}),call(other,'post','/api/client-portal/profile/'+second._id,{email})]);assert.deepEqual(results.map(r=>r.status).sort(),[200,409]);assert.equal(await require('../server/src/access').Client.countDocuments({email}),1);
+ const winner=results[0].status===200?clientUser._id:second._id;assert.equal((await require('../server/src/models/accountIdentity.model').findOne({role:'client',email})).accountId,String(winner));
+});
 test('logout destroys the session',async()=>{assert.equal((await call(other,'post','/api/logout')).body.success,true);assert.equal((await other.get('/api/client-portal/notices')).status,401)});

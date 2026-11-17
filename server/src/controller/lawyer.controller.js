@@ -37,7 +37,7 @@ const getLawyers = async (req, res) => {
     const data = list.map((item) => safeLawyer(item));
     return res.status(200).json({ success: true, data });
   } catch (err) {
-    return res.status(400).json({ success: false, message: "Error: " + err.message });
+    return res.status(err.status||400).json({ success: false, message: err.message });
   }
 };
 
@@ -46,7 +46,7 @@ const getLawyerById = async (req, res) => {
     const data = await Lawyer.findById(req.params.id).select("-password");
     return res.status(200).json({ success: true, data });
   } catch (err) {
-    return res.status(400).json({ success: false, message: "Error: " + err.message });
+    return res.status(err.status||400).json({ success: false, message: err.message });
   }
 };
 
@@ -67,10 +67,10 @@ const createLawyer = async (req, res) => {
       status,
     } = req.body;
 
-    if (!name || !email || !password) {
+    if (!name || !email || typeof password!=="string" || password.length<10 || password.length>128) {
       return res.status(200).json({
         success: false,
-        message: "name, email and password are required",
+        message: "Name, email and a password of 10 to 128 characters are required",
       });
     }
 
@@ -87,7 +87,7 @@ const createLawyer = async (req, res) => {
     const normalizedStatus = String(status || "pending").toLowerCase();
     const finalStatus = allowedStatuses.includes(normalizedStatus) ? normalizedStatus : "pending";
 
-    const created = await Lawyer.create({
+    const created = await require("../services/accounts").saveAccount(Lawyer,"lawyer",null,{
       advocate_id: advocateId,
       name,
       address: address || "",
@@ -109,7 +109,7 @@ const createLawyer = async (req, res) => {
       data: safeLawyer(created),
     });
   } catch (err) {
-    return res.status(400).json({ success: false, message: "Error: " + err.message });
+    return res.status(err.status||400).json({ success: false, message: err.message });
   }
 };
 
@@ -148,14 +148,14 @@ const updateLawyer = async (req, res) => {
       update.password = bcrypt.hashSync(String(req.body.password).trim(), 10);
     }
 
-    const updated = await Lawyer.findByIdAndUpdate(req.params.id, update, { new: true });
+    const updated = await require("../services/accounts").saveAccount(Lawyer,"lawyer",req.params.id,update);
     return res.status(200).json({
       success: true,
       message: "Lawyer updated successfully",
       data: safeLawyer(updated),
     });
   } catch (err) {
-    return res.status(400).json({ success: false, message: "Error: " + err.message });
+    return res.status(err.status||400).json({ success: false, message: err.message });
   }
 };
 
@@ -181,7 +181,7 @@ const updateLawyerStatus = async (req, res) => {
       data: safeLawyer(updated),
     });
   } catch (err) {
-    return res.status(400).json({ success: false, message: "Error: " + err.message });
+    return res.status(err.status||400).json({ success: false, message: err.message });
   }
 };
 
@@ -204,14 +204,14 @@ const updateLawyerProfile = async (req, res) => {
       update.password = bcrypt.hashSync(String(req.body.password).trim(), 10);
     }
 
-    const updated = await Lawyer.findByIdAndUpdate(req.params.id, update, { new: true });
+    const updated = await require("../services/accounts").saveAccount(Lawyer,"lawyer",req.params.id,update);
     return res.status(200).json({
       success: true,
       message: "Profile updated successfully",
       data: safeLawyer(updated),
     });
   } catch (err) {
-    return res.status(400).json({ success: false, message: "Error: " + err.message });
+    return res.status(err.status||400).json({ success: false, message: err.message });
   }
 };
 

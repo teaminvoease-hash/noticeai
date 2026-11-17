@@ -21,6 +21,27 @@ const event = (req, notice, label, detail = "", session) =>
     ],
     session ? { session } : {},
   );
+// Every document mutation writes the parent matter in the same transaction.
+// This serializes it with signing and reassignment and invalidates old approval.
+async function lockDocumentMatter(req, notice, session) {
+  const filter = {
+    _id: notice._id,
+    updatedAt: notice.updatedAt,
+    signedFile: { $in: [null, ""] },
+  };
+  if (req.session.user.role === "lawyer") filter.lawyerId = req.session.user.id;
+  const changed = await a.ClientNotice.findOneAndUpdate(
+    filter,
+    { $set: { status: "pending" } },
+    { new: true, session },
+  );
+  if (!changed)
+    a.fail(
+      409,
+      "The matter changed or has a final signed notice. Refresh before updating documents.",
+    );
+  return changed;
+}
 async function saveDraft(req, res) {
   const n = await a.noticeAccess(req, req.params.id);
   if (n.signedFile) a.fail(409, "A final signed notice cannot be edited.");
@@ -40,6 +61,9 @@ async function saveDraft(req, res) {
     updated = await a.ClientNotice.findOneAndUpdate(
       {
         _id: n._id,
+        ...(req.session.user.role === "lawyer"
+          ? { lawyerId: req.session.user.id }
+          : {}),
         updatedAt: n.updatedAt,
         $expr: {
           $eq: [{ $ifNull: ["$draftRevision", 0] }, n.draftRevision || 0],
@@ -118,8 +142,11 @@ async function respondDocument(req, res, legacy = false) {
   if ((doc.responseHistory || []).length >= 20)
     a.fail(409, "Open a new document request for further submissions.");
   await a.checkFiles(req);
+  if (n.signedFile)
+    a.fail(409, "A final signed notice cannot change documents.");
   let data;
   await mongoose.connection.transaction(async (session) => {
+    await lockDocumentMatter(req, n, session);
     data = await a.ClientDocument.findOneAndUpdate(
       {
         _id: doc._id,
@@ -175,8 +202,11 @@ async function reviewDocument(req, res) {
     a.fail(400, "Describe the corrections required.");
   if (note.length > 2000)
     a.fail(400, "Keep review notes within 2,000 characters.");
+  if (n.signedFile)
+    a.fail(409, "A final signed notice cannot change documents.");
   let data;
   await mongoose.connection.transaction(async (session) => {
+    await lockDocumentMatter(req, n, session);
     data = await a.ClientDocument.findOneAndUpdate(
       {
         _id: doc._id,
@@ -279,6 +309,11 @@ async function reviewNotice(req, res) {
     a.fail(409, "A newer draft is available. Review it before approving.");
   if (["approved", "verified"].includes(status) && n.paymentStatus !== "Paid")
     a.fail(409, "Payment must be verified before review approval");
+  if (
+    ["approved", "verified"].includes(status) &&
+    !String(n.generatedNotice || "").trim()
+  )
+    a.fail(409, "Save and review a notice draft before approval.");
   let data;
   await mongoose.connection.transaction(async (session) => {
     const docs = await a.ClientDocument.find({ noticeId: n.noticeId }).session(
@@ -295,6 +330,9 @@ async function reviewNotice(req, res) {
     data = await a.ClientNotice.findOneAndUpdate(
       {
         _id: n._id,
+        ...(req.session.user.role === "lawyer"
+          ? { lawyerId: req.session.user.id }
+          : {}),
         updatedAt: n.updatedAt,
         $expr: {
           $eq: [{ $ifNull: ["$draftRevision", 0] }, n.draftRevision || 0],
@@ -326,25 +364,45 @@ async function signNotice(req, res) {
     );
   if (!req.body.signedFile?.endsWith(".pdf"))
     a.fail(400, "A signed PDF is required");
-  const data = await a.ClientNotice.findOneAndUpdate(
-    {
-      _id: n._id,
-      updatedAt: n.updatedAt,
-      $expr: {
-        $eq: [{ $ifNull: ["$draftRevision", 0] }, n.draftRevision || 0],
+  let data;
+  await mongoose.connection.transaction(async (session) => {
+    const documents = await a.ClientDocument.find({
+      noticeId: n.noticeId,
+    }).session(session);
+    if (documents.some((d) => docState(d) !== "Reviewed"))
+      a.fail(
+        409,
+        "Review every document response before uploading the final signed notice.",
+      );
+    if (!String(n.generatedNotice || "").trim())
+      a.fail(409, "A saved notice draft is required before signing.");
+    data = await a.ClientNotice.findOneAndUpdate(
+      {
+        _id: n._id,
+        lawyerId: req.session.user.id,
+        status: { $in: ["approved", "verified"] },
+        paymentStatus: "Paid",
+        updatedAt: n.updatedAt,
+        $expr: {
+          $eq: [{ $ifNull: ["$draftRevision", 0] }, n.draftRevision || 0],
+        },
+        signedFile: { $in: [null, ""] },
       },
-      signedFile: { $in: [null, ""] },
-    },
-    {
-      $set: { signedFile: req.body.signedFile, signedNoticeStatus: "Uploaded" },
-    },
-    { new: true },
-  );
-  if (!data) a.fail(409, "The matter changed. Refresh before uploading.");
+      {
+        $set: {
+          signedFile: req.body.signedFile,
+          signedNoticeStatus: "Uploaded",
+        },
+      },
+      { new: true, session },
+    );
+    if (!data) a.fail(409, "The matter changed. Refresh before uploading.");
+  });
   res.json({ success: true, data });
 }
 module.exports = {
   docState,
+  lockDocumentMatter,
   event,
   saveDraft,
   respondDocument,
