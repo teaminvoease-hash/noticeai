@@ -1,9 +1,11 @@
+import { useHashNavigation } from "@/hooks/useHashNavigation";
 import StagingBanner from "./StagingBanner";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Scales, ArrowRight } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 export default function PublicLayout({ children }: { children: ReactNode }) {
+  useHashNavigation();
   return (
     <div className="public-platform">
       <StagingBanner />

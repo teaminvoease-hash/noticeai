@@ -1,3 +1,4 @@
+import { useHashNavigation } from "@/hooks/useHashNavigation";
 import StagingBanner from "./StagingBanner";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -330,6 +331,7 @@ export default function RoleShell({
       </>
     );
   }
+  useHashNavigation();
   return (
     <div className="workspace-shell">
       <a href="#workspace-content" className="skip-link">
