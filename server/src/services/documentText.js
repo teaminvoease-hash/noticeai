@@ -1,13 +1,172 @@
-const path=require('node:path'),yauzl=require('yauzl'),mammoth=require('mammoth');
+const path = require("node:path"),
+  yauzl = require("yauzl"),
+  mammoth = require("mammoth");
 
-const issue=(message,status=422)=>Object.assign(new Error(message),{status});
-async function inspectZip(buffer){return new Promise((resolve,reject)=>{yauzl.fromBuffer(buffer,{lazyEntries:true,validateEntrySizes:true},(error,zip)=>{if(error)return reject(issue('The DOCX file is invalid.'));let declared=0,actual=0,count=0,failed=false;const stop=error=>{if(failed)return;failed=true;zip.close();reject(error)};zip.on('error',()=>stop(issue('The DOCX archive could not be read.')));zip.on('end',()=>{if(!failed)resolve()});zip.on('entry',entry=>{declared+=entry.uncompressedSize;count++;if(declared>30*1024*1024||count>1000||entry.uncompressedSize/Math.max(entry.compressedSize,1)>150)return stop(issue('The DOCX archive exceeds processing limits.',413));if(/\/$/.test(entry.fileName)){zip.readEntry();return}zip.openReadStream(entry,(error,stream)=>{if(error)return stop(issue('The DOCX archive is invalid.'));stream.on('error',()=>stop(issue('The DOCX entry size is invalid.')));stream.on('data',chunk=>{actual+=chunk.length;if(actual>30*1024*1024){stream.destroy();stop(issue('The DOCX archive exceeds processing limits.',413))}});stream.on('end',()=>{if(!failed)zip.readEntry()})})});zip.readEntry()})})}
-async function rawExtract(buffer,name){if(buffer.length>10*1024*1024)throw issue('Choose a document up to 10 MB.',413);const ext=path.extname(name).toLowerCase();let text,pages;
- if(ext==='.pdf'){const {PDFParse}=require('pdf-parse');const parser=new PDFParse({data:new Uint8Array(buffer),isEvalSupported:false,stopAtErrors:true});try{const info=await parser.getInfo();if(info.total>50)throw issue('Use a PDF of at most 50 pages.',413);const result=await parser.getText();text=result.text;pages=result.total;}catch(e){if(e.status)throw e;throw issue('This PDF could not be read. Use an unlocked text PDF or enter the facts manually.')}finally{await parser.destroy()}}
- else if(ext==='.docx'){await inspectZip(buffer);try{text=(await mammoth.extractRawText({buffer})).value}catch{throw issue('The DOCX document could not be read.')}}else throw issue('Text extraction supports PDF and DOCX. Images require manual transcription; OCR is not configured.',415);
- text=String(text||'').replace(/\u0000/g,'').trim();if(!text)throw issue('No readable text was found. Scanned pages need OCR or manual transcription.');return {text:text.slice(0,50000),pages,truncated:text.length>50000,format:ext.slice(1),method:'local-text-extraction'};
+const issue = (message, status = 422) =>
+  Object.assign(new Error(message), { status });
+async function inspectZip(buffer) {
+  return new Promise((resolve, reject) => {
+    yauzl.fromBuffer(
+      buffer,
+      { lazyEntries: true, validateEntrySizes: true },
+      (error, zip) => {
+        if (error) return reject(issue("The DOCX file is invalid."));
+        let declared = 0,
+          actual = 0,
+          count = 0,
+          failed = false;
+        const stop = (error) => {
+          if (failed) return;
+          failed = true;
+          zip.close();
+          reject(error);
+        };
+        zip.on("error", () =>
+          stop(issue("The DOCX archive could not be read.")),
+        );
+        zip.on("end", () => {
+          if (!failed) resolve();
+        });
+        zip.on("entry", (entry) => {
+          declared += entry.uncompressedSize;
+          count++;
+          if (
+            declared > 30 * 1024 * 1024 ||
+            count > 1000 ||
+            entry.uncompressedSize / Math.max(entry.compressedSize, 1) > 150
+          )
+            return stop(
+              issue("The DOCX archive exceeds processing limits.", 413),
+            );
+          if (/\/$/.test(entry.fileName)) {
+            zip.readEntry();
+            return;
+          }
+          zip.openReadStream(entry, (error, stream) => {
+            if (error) return stop(issue("The DOCX archive is invalid."));
+            stream.on("error", () =>
+              stop(issue("The DOCX entry size is invalid.")),
+            );
+            stream.on("data", (chunk) => {
+              actual += chunk.length;
+              if (actual > 30 * 1024 * 1024) {
+                stream.destroy();
+                stop(issue("The DOCX archive exceeds processing limits.", 413));
+              }
+            });
+            stream.on("end", () => {
+              if (!failed) zip.readEntry();
+            });
+          });
+        });
+        zip.readEntry();
+      },
+    );
+  });
 }
-let inFlight=0;
-async function extractText(buffer,name){if(buffer.length>10*1024*1024)throw issue('Choose a document up to 10 MB.',413);if(inFlight>=1)throw issue('The document processor is busy. Please retry shortly.',503);inFlight++;
- try{return await new Promise((resolve,reject)=>{const child=require('node:child_process').fork(require.resolve('./documentWorker'),[],{serialization:'advanced',execArgv:['--max-old-space-size=192'],env:{NODE_ENV:process.env.NODE_ENV||'development'},stdio:['ignore','ignore','ignore','ipc']});let finished=false;const finish=(error,result)=>{if(finished)return;finished=true;clearTimeout(timer);child.kill();error?reject(error):resolve(result)};const timer=setTimeout(()=>finish(issue('The document exceeded the processing time limit. Use a smaller file or enter the facts manually.',413)),20000);child.once('error',()=>finish(issue('The document processor could not start.',503)));child.once('exit',()=>finish(issue('The document exceeded safe processing limits.',422)));child.once('message',m=>m.success?finish(null,m.result):finish(issue(m.message,m.status)));child.send({buffer,name});});}finally{inFlight--}}
-module.exports={extractText,rawExtract,inspectZip};
+async function rawExtract(buffer, name) {
+  if (buffer.length > 10 * 1024 * 1024)
+    throw issue("Choose a document up to 10 MB.", 413);
+  const ext = path.extname(name).toLowerCase();
+  let text, pages;
+  if (ext === ".pdf") {
+    const { PDFParse } = require("pdf-parse");
+    const parser = new PDFParse({
+      data: new Uint8Array(buffer),
+      isEvalSupported: false,
+      stopAtErrors: true,
+    });
+    try {
+      const info = await parser.getInfo();
+      if (info.total > 50) throw issue("Use a PDF of at most 50 pages.", 413);
+      const result = await parser.getText();
+      text = result.text;
+      pages = result.total;
+    } catch (e) {
+      if (e.status) throw e;
+      throw issue(
+        "This PDF could not be read. Use an unlocked text PDF or enter the facts manually.",
+      );
+    } finally {
+      await parser.destroy();
+    }
+  } else if (ext === ".docx") {
+    await inspectZip(buffer);
+    try {
+      text = (await mammoth.extractRawText({ buffer })).value;
+    } catch {
+      throw issue("The DOCX document could not be read.");
+    }
+  } else
+    throw issue(
+      "Text extraction supports PDF and DOCX. Images require manual transcription; OCR is not configured.",
+      415,
+    );
+  text = String(text || "")
+    .replace(/\u0000/g, "")
+    .trim();
+  if (!text)
+    throw issue(
+      "No readable text was found. Scanned pages need OCR or manual transcription.",
+    );
+  return {
+    text: text.slice(0, 50000),
+    pages,
+    truncated: text.length > 50000,
+    format: ext.slice(1),
+    method: "local-text-extraction",
+  };
+}
+let inFlight = 0;
+async function extractText(buffer, name) {
+  if (buffer.length > 10 * 1024 * 1024)
+    throw issue("Choose a document up to 10 MB.", 413);
+  if (inFlight >= 1)
+    throw issue("The document processor is busy. Please retry shortly.", 503);
+  inFlight++;
+  try {
+    return await new Promise((resolve, reject) => {
+      const child = require("node:child_process").fork(
+        require.resolve("./documentWorker"),
+        [],
+        {
+          serialization: "advanced",
+          execArgv: ["--max-old-space-size=192"],
+          env: { NODE_ENV: process.env.NODE_ENV || "development" },
+          stdio: ["ignore", "ignore", "ignore", "ipc"],
+        },
+      );
+      let finished = false;
+      const finish = (error, result) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        child.kill();
+        error ? reject(error) : resolve(result);
+      };
+      const timer = setTimeout(
+        () =>
+          finish(
+            issue(
+              "The document exceeded the processing time limit. Use a smaller file or enter the facts manually.",
+              413,
+            ),
+          ),
+        20000,
+      );
+      child.once("error", () =>
+        finish(issue("The document processor could not start.", 503)),
+      );
+      child.once("exit", () =>
+        finish(issue("The document exceeded safe processing limits.", 422)),
+      );
+      child.once("message", (m) =>
+        m.success ? finish(null, m.result) : finish(issue(m.message, m.status)),
+      );
+      child.send({ buffer, name });
+    });
+  } finally {
+    inFlight--;
+  }
+}
+module.exports = { extractText, rawExtract, inspectZip };

@@ -1,14 +1,529 @@
-import{useEffect,useMemo,useState}from'react';import{Sparkle,FileText,DownloadSimple,ShieldCheck,ArrowRight,WarningCircle}from'@phosphor-icons/react';import{Button}from'@/components/ui/button';import{Card,CardHeader,CardTitle,CardDescription,CardContent}from'@/components/ui/card';import{Badge}from'@/components/ui/badge';import{api}from'@/lib/api';import type{AiFacts,ExtractionResult,Role}from'@/types/platform';
-interface Reference{id:string;act:string;section:string;description:string;verify:string;source:string;status:string}
-interface AiStatus{textExtraction:boolean;aiEnabled:boolean;provider:string;model:string;references:Reference[]}
-interface Artifact{_id:string;kind:'facts'|'draft';draft?:string;facts?:AiFacts;provider:string;model:string;createdAt:string;sourceRevision:number;sourceFile?:string}
-interface Props{matterId:string;role:Role;revision:number;paymentStatus:string;signedFile?:string;files:string[];caseSummary?:string;hasDraft:boolean;onApplied:()=>Promise<unknown>;onAdoptFacts?:(text:string)=>void}
-export default function AiWorkspace({matterId,role,revision,paymentStatus,signedFile,files,caseSummary='',hasDraft,onApplied,onAdoptFacts}:Props){
- const[status,setStatus]=useState<AiStatus|null>(null),[artifacts,setArtifacts]=useState<Artifact[]>([]),[selected,setSelected]=useState(''),[extraction,setExtraction]=useState<ExtractionResult|null>(null),[consent,setConsent]=useState(false),[references,setReferences]=useState<string[]>([]),[active,setActive]=useState<Artifact|null>(null),[reviewed,setReviewed]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
- const readable=useMemo(()=>[...new Set(files)].filter(f=>/\.(pdf|docx)$/i.test(f)),[files]);
- async function refresh(){const [state,history]=await Promise.all([api<AiStatus>('/api/ai/status'),api<Artifact[]>('/api/ai/matters/'+matterId+'/artifacts')]);setStatus(state);setArtifacts(history)}
- useEffect(()=>{refresh().catch(e=>setError(e.message))},[matterId]);
- async function run(fn:()=>Promise<void>){setBusy(true);setError('');setMessage('');try{await fn()}catch(e){setError(e instanceof Error?e.message:'Unable to process this document.')}finally{setBusy(false)}}
- function choose(artifact:Artifact){setActive(artifact);setReviewed(false)}
- return <Card className="ai-workspace my-6"><CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><Sparkle size={22} className="text-primary"/><CardTitle>Document intelligence</CardTitle></div><Badge>{status?.aiEnabled?'AI provider configured':'Local text extraction available'}</Badge></div><CardDescription>Extract source text, review facts and prepare an advocate-reviewed proposal. No extracted content replaces the matter automatically.</CardDescription></CardHeader><CardContent><div className="grid gap-7 xl:grid-cols-2"><div><label className="mb-2 block text-xs font-semibold" htmlFor={'ai-source-'+matterId}>Source document</label><select id={'ai-source-'+matterId} className="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm" value={selected} onChange={e=>{setSelected(e.target.value);setExtraction(null);setConsent(false)}}><option value="">Use the matter’s recorded facts</option>{readable.map((f,i)=><option value={f} key={f}>Attached PDF/DOCX {i+1} · {f.slice(-18)}</option>)}</select><p className="mt-2 text-xs leading-6 text-muted-foreground">Text PDFs and DOCX are supported, up to 10 MB and 50 PDF pages. Scanned pages require manual transcription; OCR is not configured.</p><Button className="mt-3" variant="outline" disabled={busy||!selected} onClick={()=>run(async()=>{const data=await api<ExtractionResult>('/api/ai/extract','POST',{fileName:selected});setExtraction(data);setMessage('Text extracted locally. Review the source before using it.');})}><FileText/>Extract text locally</Button>{extraction&&<div className="mt-4 rounded-lg border bg-slate-50 p-4"><p className="text-xs font-semibold">{extraction.originalName} · {extraction.pages?extraction.pages+' pages':'DOCX'}</p>{extraction.truncated&&<p className="my-2 text-xs text-amber-800">Only the first 50,000 characters are shown.</p>}<label className="sr-only" htmlFor={'source-text-'+matterId}>Extracted source text</label><textarea id={'source-text-'+matterId} readOnly value={extraction.text} rows={9} className="mt-3 w-full rounded-md border bg-white p-3 text-xs leading-6"/>{onAdoptFacts&&<Button variant="outline" className="mt-3" onClick={()=>{onAdoptFacts(extraction.text.slice(0,20000));setMessage('The first 20,000 characters were prefilled in the facts editor. Review and edit before saving.')}}>Prefill facts editor for review<ArrowRight/></Button>}</div>}<div className="mt-6 rounded-lg border border-blue-100 bg-blue-50/60 p-4"><div className="flex gap-2 text-primary"><ShieldCheck size={19}/><strong className="text-xs">A human remains in control</strong></div><p className="mt-2 text-xs leading-6 text-muted-foreground">Extraction can miss context. AI proposals can contain errors. Verify evidence, applicable law, deadlines, jurisdiction and relief before approval or signature.</p></div></div><div><h3 className="text-sm font-semibold">AI preparation</h3>{!status?.aiEnabled?<p className="mt-3 rounded-lg border border-dashed p-4 text-xs leading-6 text-muted-foreground">External AI processing is disabled or unconfigured in this environment. An administrator can configure a staging-only provider key and enable AI after reviewing data handling. Local extraction and manual drafting continue to work.</p>:<><p className="mt-2 text-xs leading-6 text-muted-foreground">Selected {selected?'document text':'matter facts'} and case context will be sent to {status.provider}. Do not include unrelated personal or privileged material.</p><label className="mt-3 flex items-start gap-3 text-xs leading-6"><input className="mt-1 size-4 shrink-0" type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>I authorise sending this selected content to the configured AI provider for this request.</label><details className="my-4"><summary className="cursor-pointer text-xs font-semibold">Candidate legal provisions — advocate verification required</summary><p className="mt-2 text-xs leading-6 text-muted-foreground">Select only provisions relevant to the facts. This curated reference list is not current-law research or a determination of applicability.</p>{status.references.map(r=><label key={r.id} className="my-3 flex items-start gap-3 text-xs leading-6"><input className="mt-1 size-4 shrink-0" type="checkbox" checked={references.includes(r.id)} onChange={e=>setReferences(v=>e.target.checked?[...v,r.id]:v.filter(x=>x!==r.id))}/><span><strong>{r.act} · s. {r.section}</strong><span className="block">{r.description}</span><span className="block text-muted-foreground">{r.verify} <a href={r.source} target="_blank" rel="noreferrer" className="underline">India Code</a></span></span></label>)}</details><div className="flex flex-wrap gap-2">{(['facts','draft']as const).map(kind=><Button key={kind} variant={kind==='facts'?'outline':'default'} disabled={busy||!consent||!!signedFile} onClick={()=>run(async()=>{const result=await api<{artifact:Artifact}>('/api/ai/matters/'+matterId+'/'+kind,'POST',{fileName:selected||undefined,text:extraction?.text||caseSummary,referenceIds:references,consentToAi:consent});choose(result.artifact);await refresh();setMessage('Proposal saved for review. The matter’s facts and draft have not changed.');})}><Sparkle/>{kind==='facts'?'Propose extracted facts':'Prepare notice proposal'}</Button>)}</div></>}<h3 className="mb-2 mt-6 text-sm font-semibold">Working-copy exports</h3><p className="mb-3 text-xs leading-6 text-muted-foreground">Exports use the current saved matter draft, not an unapplied AI proposal. They are marked unsigned and require independent review.</p>{!hasDraft?<p className="text-xs text-muted-foreground">Save a notice draft before exporting a working copy.</p>:<div className="flex flex-wrap gap-2"><Button asChild variant="outline"><a href={'/api/matters/'+matterId+'/export/pdf'}><DownloadSimple/>PDF working copy</a></Button><Button asChild variant="outline"><a href={'/api/matters/'+matterId+'/export/docx'}><DownloadSimple/>Editable DOCX</a></Button></div>}</div></div>{error&&<p role="alert" className="mt-5 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs leading-6 text-red-800"><WarningCircle size={18} className="shrink-0"/>{error}</p>}{message&&<p role="status" className="mt-4 text-xs leading-6 text-muted-foreground">{message}</p>}{artifacts.length>0&&<div className="mt-6 border-t pt-5"><h3 className="mb-3 text-sm font-semibold">Saved AI proposals</h3><div className="flex flex-wrap gap-2">{artifacts.map(a=><Button key={a._id} variant="outline" size="sm" onClick={()=>choose(a)}>{a.kind==='facts'?'Facts':'Draft'} · {new Date(a.createdAt).toLocaleDateString('en-IN')}</Button>)}</div></div>}{active&&<section className="mt-5 rounded-lg border p-5"><div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold">{active.kind==='facts'?'Fact proposal':'Notice draft proposal'}</h3><Badge>Unapplied · Review required</Badge></div><p className="my-3 text-xs text-muted-foreground">{active.provider} / {active.model} · Based on draft revision {active.sourceRevision}</p>{active.facts?<><p className="whitespace-pre-wrap text-sm leading-7">{active.facts.summary}</p>{(['parties','dates','amounts','obligations','missingInformation','sourceQuotes']as const).map(key=><div key={key} className="mt-4"><h4 className="text-xs font-semibold">{key.replace(/([A-Z])/g,' $1')}</h4><ul className="mt-2 list-inside list-disc text-xs leading-7 text-muted-foreground">{active.facts?.[key].map((value,i)=><li key={i}>{value}</li>)}</ul></div>)}{onAdoptFacts&&<Button className="mt-4" variant="outline" onClick={()=>onAdoptFacts(active.facts!.summary)}>Prefill the facts editor for review</Button>}</>:<><pre className="whitespace-pre-wrap break-words rounded-md bg-slate-50 p-4 font-serif text-sm leading-8">{active.draft}</pre>{role==='lawyer'&&<><label className="my-4 flex items-start gap-3 text-xs leading-6"><input type="checkbox" className="mt-1 size-4 shrink-0" checked={reviewed} onChange={e=>setReviewed(e.target.checked)}/>I have reviewed this proposal against the evidence and will apply it as a draft version, not as a signed or issued notice.</label><Button disabled={busy||!reviewed||paymentStatus!=='Paid'||!!signedFile||revision!==active.sourceRevision} onClick={()=>run(async()=>{await api('/api/ai/artifacts/'+active._id+'/apply','POST',{reviewed:true});await onApplied();setMessage('Applied as a new draft version. Professional review approval is still required.');setReviewed(false);})}>Apply as a new draft version</Button>{revision!==active.sourceRevision&&<p className="mt-2 text-xs text-amber-800">The saved draft changed after this proposal. Prepare a fresh proposal for the current version.</p>}{paymentStatus!=='Paid'&&<p className="mt-2 text-xs text-muted-foreground">Verified payment is required before editing the saved notice draft.</p>}</>}</>}<Button variant="ghost" size="sm" className="mt-4" onClick={()=>setActive(null)}>Close proposal</Button></section>}</CardContent></Card>
+import { useEffect, useMemo, useState } from "react";
+import {
+  Sparkle,
+  FileText,
+  DownloadSimple,
+  ShieldCheck,
+  ArrowRight,
+  WarningCircle,
+} from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { api } from "@/lib/api";
+import type { AiFacts, ExtractionResult, Role } from "@/types/platform";
+interface Reference {
+  id: string;
+  act: string;
+  section: string;
+  description: string;
+  verify: string;
+  source: string;
+  status: string;
+}
+interface AiStatus {
+  textExtraction: boolean;
+  aiEnabled: boolean;
+  provider: string;
+  model: string;
+  references: Reference[];
+}
+interface Artifact {
+  _id: string;
+  kind: "facts" | "draft";
+  draft?: string;
+  facts?: AiFacts;
+  provider: string;
+  model: string;
+  createdAt: string;
+  sourceRevision: number;
+  sourceFile?: string;
+}
+interface Props {
+  matterId: string;
+  role: Role;
+  revision: number;
+  paymentStatus: string;
+  signedFile?: string;
+  files: string[];
+  caseSummary?: string;
+  hasDraft: boolean;
+  onApplied: () => Promise<unknown>;
+  onAdoptFacts?: (text: string) => void;
+}
+export default function AiWorkspace({
+  matterId,
+  role,
+  revision,
+  paymentStatus,
+  signedFile,
+  files,
+  caseSummary = "",
+  hasDraft,
+  onApplied,
+  onAdoptFacts,
+}: Props) {
+  const [status, setStatus] = useState<AiStatus | null>(null),
+    [artifacts, setArtifacts] = useState<Artifact[]>([]),
+    [selected, setSelected] = useState(""),
+    [extraction, setExtraction] = useState<ExtractionResult | null>(null),
+    [consent, setConsent] = useState(false),
+    [references, setReferences] = useState<string[]>([]),
+    [active, setActive] = useState<Artifact | null>(null),
+    [reviewed, setReviewed] = useState(false),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [message, setMessage] = useState("");
+  const readable = useMemo(
+    () => [...new Set(files)].filter((f) => /\.(pdf|docx)$/i.test(f)),
+    [files],
+  );
+  async function refresh() {
+    const [state, history] = await Promise.all([
+      api<AiStatus>("/api/ai/status"),
+      api<Artifact[]>("/api/ai/matters/" + matterId + "/artifacts"),
+    ]);
+    setStatus(state);
+    setArtifacts(history);
+  }
+  useEffect(() => {
+    refresh().catch((e) => setError(e.message));
+  }, [matterId]);
+  async function run(fn: () => Promise<void>) {
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      await fn();
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Unable to process this document.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  function choose(artifact: Artifact) {
+    setActive(artifact);
+    setReviewed(false);
+  }
+  return (
+    <Card className="ai-workspace my-6">
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Sparkle size={22} className="text-primary" />
+            <CardTitle>Document intelligence</CardTitle>
+          </div>
+          <Badge>
+            {status?.aiEnabled
+              ? "AI provider configured"
+              : "Local text extraction available"}
+          </Badge>
+        </div>
+        <CardDescription>
+          Extract source text, review facts and prepare an advocate-reviewed
+          proposal. No extracted content replaces the matter automatically.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-7 xl:grid-cols-2">
+          <div>
+            <label
+              className="mb-2 block text-xs font-semibold"
+              htmlFor={"ai-source-" + matterId}
+            >
+              Source document
+            </label>
+            <select
+              id={"ai-source-" + matterId}
+              className="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm"
+              value={selected}
+              onChange={(e) => {
+                setSelected(e.target.value);
+                setExtraction(null);
+                setConsent(false);
+              }}
+            >
+              <option value="">Use the matter’s recorded facts</option>
+              {readable.map((f, i) => (
+                <option value={f} key={f}>
+                  Attached PDF/DOCX {i + 1} · {f.slice(-18)}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs leading-6 text-muted-foreground">
+              Text PDFs and DOCX are supported, up to 10 MB and 50 PDF pages.
+              Scanned pages require manual transcription; OCR is not configured.
+            </p>
+            <Button
+              className="mt-3"
+              variant="outline"
+              disabled={busy || !selected}
+              onClick={() =>
+                run(async () => {
+                  const data = await api<ExtractionResult>(
+                    "/api/ai/extract",
+                    "POST",
+                    { fileName: selected },
+                  );
+                  setExtraction(data);
+                  setMessage(
+                    "Text extracted locally. Review the source before using it.",
+                  );
+                })
+              }
+            >
+              <FileText />
+              Extract text locally
+            </Button>
+            {extraction && (
+              <div className="mt-4 rounded-lg border bg-slate-50 p-4">
+                <p className="text-xs font-semibold">
+                  {extraction.originalName} ·{" "}
+                  {extraction.pages ? extraction.pages + " pages" : "DOCX"}
+                </p>
+                {extraction.truncated && (
+                  <p className="my-2 text-xs text-amber-800">
+                    Only the first 50,000 characters are shown.
+                  </p>
+                )}
+                <label className="sr-only" htmlFor={"source-text-" + matterId}>
+                  Extracted source text
+                </label>
+                <textarea
+                  id={"source-text-" + matterId}
+                  readOnly
+                  value={extraction.text}
+                  rows={9}
+                  className="mt-3 w-full rounded-md border bg-white p-3 text-xs leading-6"
+                />
+                {onAdoptFacts && (
+                  <Button
+                    variant="outline"
+                    className="mt-3"
+                    onClick={() => {
+                      onAdoptFacts(extraction.text.slice(0, 20000));
+                      setMessage(
+                        "The first 20,000 characters were prefilled in the facts editor. Review and edit before saving.",
+                      );
+                    }}
+                  >
+                    Prefill facts editor for review
+                    <ArrowRight />
+                  </Button>
+                )}
+              </div>
+            )}
+            <div className="mt-6 rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+              <div className="flex gap-2 text-primary">
+                <ShieldCheck size={19} />
+                <strong className="text-xs">A human remains in control</strong>
+              </div>
+              <p className="mt-2 text-xs leading-6 text-muted-foreground">
+                Extraction can miss context. AI proposals can contain errors.
+                Verify evidence, applicable law, deadlines, jurisdiction and
+                relief before approval or signature.
+              </p>
+            </div>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold">AI preparation</h3>
+            {!status?.aiEnabled ? (
+              <p className="mt-3 rounded-lg border border-dashed p-4 text-xs leading-6 text-muted-foreground">
+                External AI processing is disabled or unconfigured in this
+                environment. An administrator can configure a staging-only
+                provider key and enable AI after reviewing data handling. Local
+                extraction and manual drafting continue to work.
+              </p>
+            ) : (
+              <>
+                <p className="mt-2 text-xs leading-6 text-muted-foreground">
+                  Selected {selected ? "document text" : "matter facts"} and
+                  case context will be sent to {status.provider}. Do not include
+                  unrelated personal or privileged material.
+                </p>
+                <label className="mt-3 flex items-start gap-3 text-xs leading-6">
+                  <input
+                    className="mt-1 size-4 shrink-0"
+                    type="checkbox"
+                    checked={consent}
+                    onChange={(e) => setConsent(e.target.checked)}
+                  />
+                  I authorise sending this selected content to the configured AI
+                  provider for this request.
+                </label>
+                <details className="my-4">
+                  <summary className="cursor-pointer text-xs font-semibold">
+                    Candidate legal provisions — advocate verification required
+                  </summary>
+                  <p className="mt-2 text-xs leading-6 text-muted-foreground">
+                    Select only provisions relevant to the facts. This curated
+                    reference list is not current-law research or a
+                    determination of applicability.
+                  </p>
+                  {status.references.map((r) => (
+                    <label
+                      key={r.id}
+                      className="my-3 flex items-start gap-3 text-xs leading-6"
+                    >
+                      <input
+                        className="mt-1 size-4 shrink-0"
+                        type="checkbox"
+                        checked={references.includes(r.id)}
+                        onChange={(e) =>
+                          setReferences((v) =>
+                            e.target.checked
+                              ? [...v, r.id]
+                              : v.filter((x) => x !== r.id),
+                          )
+                        }
+                      />
+                      <span>
+                        <strong>
+                          {r.act} · s. {r.section}
+                        </strong>
+                        <span className="block">{r.description}</span>
+                        <span className="block text-muted-foreground">
+                          {r.verify}{" "}
+                          <a
+                            href={r.source}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline"
+                          >
+                            India Code
+                          </a>
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </details>
+                <div className="flex flex-wrap gap-2">
+                  {(["facts", "draft"] as const).map((kind) => (
+                    <Button
+                      key={kind}
+                      variant={kind === "facts" ? "outline" : "default"}
+                      disabled={busy || !consent || !!signedFile}
+                      onClick={() =>
+                        run(async () => {
+                          const result = await api<{ artifact: Artifact }>(
+                            "/api/ai/matters/" + matterId + "/" + kind,
+                            "POST",
+                            {
+                              fileName: selected || undefined,
+                              text: extraction?.text || caseSummary,
+                              referenceIds: references,
+                              consentToAi: consent,
+                            },
+                          );
+                          choose(result.artifact);
+                          await refresh();
+                          setMessage(
+                            "Proposal saved for review. The matter’s facts and draft have not changed.",
+                          );
+                        })
+                      }
+                    >
+                      <Sparkle />
+                      {kind === "facts"
+                        ? "Propose extracted facts"
+                        : "Prepare notice proposal"}
+                    </Button>
+                  ))}
+                </div>
+              </>
+            )}
+            <h3 className="mb-2 mt-6 text-sm font-semibold">
+              Working-copy exports
+            </h3>
+            <p className="mb-3 text-xs leading-6 text-muted-foreground">
+              Exports use the current saved matter draft, not an unapplied AI
+              proposal. They are marked unsigned and require independent review.
+            </p>
+            {!hasDraft ? (
+              <p className="text-xs text-muted-foreground">
+                Save a notice draft before exporting a working copy.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <Button asChild variant="outline">
+                  <a href={"/api/matters/" + matterId + "/export/pdf"}>
+                    <DownloadSimple />
+                    PDF working copy
+                  </a>
+                </Button>
+                <Button asChild variant="outline">
+                  <a href={"/api/matters/" + matterId + "/export/docx"}>
+                    <DownloadSimple />
+                    Editable DOCX
+                  </a>
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+        {error && (
+          <p
+            role="alert"
+            className="mt-5 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs leading-6 text-red-800"
+          >
+            <WarningCircle size={18} className="shrink-0" />
+            {error}
+          </p>
+        )}
+        {message && (
+          <p
+            role="status"
+            className="mt-4 text-xs leading-6 text-muted-foreground"
+          >
+            {message}
+          </p>
+        )}
+        {artifacts.length > 0 && (
+          <div className="mt-6 border-t pt-5">
+            <h3 className="mb-3 text-sm font-semibold">Saved AI proposals</h3>
+            <div className="flex flex-wrap gap-2">
+              {artifacts.map((a) => (
+                <Button
+                  key={a._id}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => choose(a)}
+                >
+                  {a.kind === "facts" ? "Facts" : "Draft"} ·{" "}
+                  {new Date(a.createdAt).toLocaleDateString("en-IN")}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+        {active && (
+          <section className="mt-5 rounded-lg border p-5">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold">
+                {active.kind === "facts"
+                  ? "Fact proposal"
+                  : "Notice draft proposal"}
+              </h3>
+              <Badge>Unapplied · Review required</Badge>
+            </div>
+            <p className="my-3 text-xs text-muted-foreground">
+              {active.provider} / {active.model} · Based on draft revision{" "}
+              {active.sourceRevision}
+            </p>
+            {active.facts ? (
+              <>
+                <p className="whitespace-pre-wrap text-sm leading-7">
+                  {active.facts.summary}
+                </p>
+                {(
+                  [
+                    "parties",
+                    "dates",
+                    "amounts",
+                    "obligations",
+                    "missingInformation",
+                    "sourceQuotes",
+                  ] as const
+                ).map((key) => (
+                  <div key={key} className="mt-4">
+                    <h4 className="text-xs font-semibold">
+                      {key.replace(/([A-Z])/g, " $1")}
+                    </h4>
+                    <ul className="mt-2 list-inside list-disc text-xs leading-7 text-muted-foreground">
+                      {active.facts?.[key].map((value, i) => (
+                        <li key={i}>{value}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+                {onAdoptFacts && (
+                  <Button
+                    className="mt-4"
+                    variant="outline"
+                    onClick={() => onAdoptFacts(active.facts!.summary)}
+                  >
+                    Prefill the facts editor for review
+                  </Button>
+                )}
+              </>
+            ) : (
+              <>
+                <pre className="whitespace-pre-wrap break-words rounded-md bg-slate-50 p-4 font-serif text-sm leading-8">
+                  {active.draft}
+                </pre>
+                {role === "lawyer" && (
+                  <>
+                    <label className="my-4 flex items-start gap-3 text-xs leading-6">
+                      <input
+                        type="checkbox"
+                        className="mt-1 size-4 shrink-0"
+                        checked={reviewed}
+                        onChange={(e) => setReviewed(e.target.checked)}
+                      />
+                      I have reviewed this proposal against the evidence and
+                      will apply it as a draft version, not as a signed or
+                      issued notice.
+                    </label>
+                    <Button
+                      disabled={
+                        busy ||
+                        !reviewed ||
+                        paymentStatus !== "Paid" ||
+                        !!signedFile ||
+                        revision !== active.sourceRevision
+                      }
+                      onClick={() =>
+                        run(async () => {
+                          await api(
+                            "/api/ai/artifacts/" + active._id + "/apply",
+                            "POST",
+                            { reviewed: true },
+                          );
+                          await onApplied();
+                          setMessage(
+                            "Applied as a new draft version. Professional review approval is still required.",
+                          );
+                          setReviewed(false);
+                        })
+                      }
+                    >
+                      Apply as a new draft version
+                    </Button>
+                    {revision !== active.sourceRevision && (
+                      <p className="mt-2 text-xs text-amber-800">
+                        The saved draft changed after this proposal. Prepare a
+                        fresh proposal for the current version.
+                      </p>
+                    )}
+                    {paymentStatus !== "Paid" && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Verified payment is required before editing the saved
+                        notice draft.
+                      </p>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-4"
+              onClick={() => setActive(null)}
+            >
+              Close proposal
+            </Button>
+          </section>
+        )}
+      </CardContent>
+    </Card>
+  );
 }

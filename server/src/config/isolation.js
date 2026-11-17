@@ -1,5 +1,59 @@
-function dbInfo(uri){try{const url=new URL(uri);return {host:url.hostname,database:decodeURIComponent(url.pathname.slice(1)),protocol:url.protocol}}catch{throw new Error('A valid MongoDB URI is required')}}
-function assertIsolation(env){if(env.APP_ENV!=='staging')return;const info=dbInfo(env.MONGODB_URI);const expected=env.STAGING_DATABASE_NAME||'noticeai_staging';if(!/staging/i.test(expected)||info.database!==expected)throw new Error('Staging must use its explicitly named staging database.');const origin=new URL(env.APP_ORIGIN||'http://localhost:6080');if(['mynotice.credend.in','noticeai-eod8.onrender.com'].includes(origin.hostname))throw new Error('A production origin cannot be used for staging.');if(!env.SESSION_COOKIE_NAME||env.SESSION_COOKIE_NAME==='notice.sid')throw new Error('Use a distinct staging session cookie name.');if(env.PAYU_IS_LIVE==='true')throw new Error('Live payments are forbidden in staging.');}
-function assertTestDatabase(uri){const info=dbInfo(uri);if(!['127.0.0.1','localhost','[::1]'].includes(info.host)||!/_tests?$/.test(info.database)||info.protocol!=='mongodb:')throw new Error('Destructive integration tests require a loopback MongoDB URI and an explicitly named _test or _tests database.');}
-function assertRuntimeSecrets(env){if(env.NODE_ENV==='production'||env.APP_ENV==='staging'){if(!env.SESSION_SECRET||env.SESSION_SECRET.length<32||/^(replace|changeme|example)/i.test(env.SESSION_SECRET))throw new Error('Generate a new environment-specific session secret of at least 32 characters.');}}
-module.exports={assertIsolation,assertTestDatabase,assertRuntimeSecrets,dbInfo};
+function dbInfo(uri) {
+  try {
+    const url = new URL(uri);
+    return {
+      host: url.hostname,
+      database: decodeURIComponent(url.pathname.slice(1)),
+      protocol: url.protocol,
+    };
+  } catch {
+    throw new Error("A valid MongoDB URI is required");
+  }
+}
+function assertIsolation(env) {
+  if (env.APP_ENV !== "staging") return;
+  const info = dbInfo(env.MONGODB_URI);
+  const expected = env.STAGING_DATABASE_NAME || "noticeai_staging";
+  if (!/staging/i.test(expected) || info.database !== expected)
+    throw new Error("Staging must use its explicitly named staging database.");
+  const origin = new URL(env.APP_ORIGIN || "http://localhost:6080");
+  if (
+    ["mynotice.credend.in", "noticeai-eod8.onrender.com"].includes(
+      origin.hostname,
+    )
+  )
+    throw new Error("A production origin cannot be used for staging.");
+  if (!env.SESSION_COOKIE_NAME || env.SESSION_COOKIE_NAME === "notice.sid")
+    throw new Error("Use a distinct staging session cookie name.");
+  if (env.PAYU_IS_LIVE === "true")
+    throw new Error("Live payments are forbidden in staging.");
+}
+function assertTestDatabase(uri) {
+  const info = dbInfo(uri);
+  if (
+    !["127.0.0.1", "localhost", "[::1]"].includes(info.host) ||
+    !/_tests?$/.test(info.database) ||
+    info.protocol !== "mongodb:"
+  )
+    throw new Error(
+      "Destructive integration tests require a loopback MongoDB URI and an explicitly named _test or _tests database.",
+    );
+}
+function assertRuntimeSecrets(env) {
+  if (env.NODE_ENV === "production" || env.APP_ENV === "staging") {
+    if (
+      !env.SESSION_SECRET ||
+      env.SESSION_SECRET.length < 32 ||
+      /^(replace|changeme|example)/i.test(env.SESSION_SECRET)
+    )
+      throw new Error(
+        "Generate a new environment-specific session secret of at least 32 characters.",
+      );
+  }
+}
+module.exports = {
+  assertIsolation,
+  assertTestDatabase,
+  assertRuntimeSecrets,
+  dbInfo,
+};
