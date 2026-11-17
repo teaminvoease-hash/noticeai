@@ -8,7 +8,7 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--foreground);
-  --color-muted: var(--muted);
+  --color-muted: var(--surface-muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--foreground);
@@ -25,7 +25,8 @@
   --primary: #102c50;
   --primary-foreground: #fff;
   --secondary: #eff3f8;
-  --muted: #f5f7fb;
+  --surface-muted: #f5f7fb;
+  --muted: #657289; /* Legacy text token; never use a surface colour here. */
   --muted-foreground: #697b91;
   --accent: #edf3fc;
   --border: #e1e8f0;
@@ -274,6 +275,9 @@ body {
   top: 0 !important;
   left: 0 !important;
   transform: none !important;
+  translate: none !important;
+  max-height: 100dvh !important;
+  height: 100dvh;
   max-width: 300px !important;
   width: 85vw !important;
   border-radius: 0 !important;
@@ -1763,4 +1767,18 @@ textarea::placeholder {
   .staging-banner {
     font-size: 10px;
   }
+}
+
+/* Keep component contrast above unlayered legacy anchor rules. */
+[data-slot="button"][data-variant="default"],
+[data-slot="button"][data-variant="destructive"] {
+  color: #fff;
+}
+[data-slot="button"][data-variant="outline"],
+[data-slot="button"][data-variant="secondary"],
+[data-slot="button"][data-variant="ghost"] {
+  color: #173a63;
+}
+.public-announcement a {
+  color: #e4edf7;
 }

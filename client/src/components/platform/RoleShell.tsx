@@ -1,6 +1,6 @@
 import { useHashNavigation } from "@/hooks/useHashNavigation";
 import StagingBanner from "./StagingBanner";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useRef, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { Command } from "cmdk";
@@ -244,6 +244,7 @@ export default function RoleShell({
           .userData,
     ),
     navigate = useNavigate();
+  const mobileTrigger = useRef<HTMLButtonElement>(null);
   const [mobile, setMobile] = useState(false),
     [search, setSearch] = useState(false),
     [matters, setMatters] = useState<WorkflowMatter[]>([]),
@@ -339,7 +340,13 @@ export default function RoleShell({
       </a>
       <aside className="shell-sidebar">{navigation()}</aside>
       <Dialog open={mobile} onOpenChange={setMobile}>
-        <DialogContent className="shell-mobile-dialog">
+        <DialogContent
+          className="shell-mobile-dialog"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            mobileTrigger.current?.focus();
+          }}
+        >
           <DialogTitle className="sr-only">Workspace navigation</DialogTitle>
           <DialogDescription className="sr-only">
             Navigate your {roleName[role].toLowerCase()}.
@@ -354,6 +361,8 @@ export default function RoleShell({
               variant="ghost"
               size="icon"
               className="shell-mobile-toggle"
+              ref={mobileTrigger}
+              aria-expanded={mobile}
               onClick={() => setMobile(true)}
               aria-label="Open workspace navigation"
             >
