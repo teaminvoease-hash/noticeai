@@ -1,3 +1,4 @@
+import ProfessionalNotice from '../../../components/platform/ProfessionalNotice';
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { END_POINT, METHODS } from "../../../helper/helper";
@@ -73,6 +74,7 @@ const ClientLogin = () => {
           <h1 className="auth-title">Client Login</h1>
           <p className="auth-subtitle">Login to submit legal notices, upload documents, and track progress.</p>
 
+          <ProfessionalNotice/>
           <form className="auth-form" onSubmit={handleSubmit}>
             <label htmlFor="client-email">Email Address</label>
             <input

@@ -15,7 +15,7 @@ export interface WorkflowMatter {
   clientName?: string;
   paymentStatus: string;
   status: string;
-  workflow: { step: number; owner: Role | null; label: string };
+  workflow: { step: number; owner: Role | null; label: string;nextAction?:string;whatHappensNext?:string;section?:string;updateNote?:string;nextUpdateAt?:string|null;updatedAt?:string };
 }
 export interface ExtractionResult {
   fileName: string;

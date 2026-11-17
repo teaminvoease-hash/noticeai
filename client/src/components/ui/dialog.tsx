@@ -9,14 +9,19 @@ export const Dialog = Primitive.Root,
   DialogDescription = Primitive.Description;
 export const DialogContent = React.forwardRef<
   React.ElementRef<typeof Primitive.Content>,
-  React.ComponentPropsWithoutRef<typeof Primitive.Content>
->(({ className, children, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof Primitive.Content> & {
+    placement?: "center" | "left";
+  }
+>(({ className, children, placement = "center", ...props }, ref) => (
   <Primitive.Portal>
     <Primitive.Overlay className="fixed inset-0 z-[100] bg-slate-950/50 backdrop-blur-sm" />
     <Primitive.Content
       ref={ref}
       className={cn(
-        "fixed left-1/2 top-[15%] z-[101] grid w-[calc(100%_-_2rem)] max-h-[85dvh] overflow-y-auto max-w-xl -translate-x-1/2 gap-4 rounded-xl border bg-background p-6 shadow-xl focus:outline-none",
+        "fixed z-[101] grid w-[calc(100%_-_2rem)] overflow-y-auto max-w-xl gap-4 rounded-xl border border-border bg-background p-6 shadow-xl focus:outline-none",
+        placement === "left"
+          ? "inset-y-0 left-0 max-h-dvh"
+          : "left-1/2 top-[15%] max-h-[85dvh] -translate-x-1/2",
         className,
       )}
       {...props}

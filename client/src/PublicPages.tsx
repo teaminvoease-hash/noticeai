@@ -1,3 +1,4 @@
+import ProfessionalNotice from "@/components/platform/ProfessionalNotice";
 import { useEffect, useState, type FormEvent } from "react";
 import { useParams, Link } from "react-router-dom";
 import DOMPurify from "dompurify";
@@ -14,6 +15,78 @@ export function LegalPage() {
   return (
     <PublicLayout>
       <main className="premium-section">
+        <ProfessionalNotice />
+        {policy === "compliance" && (
+          <section className="professional-policy">
+            <h1>Mandatory professional review and platform boundaries</h1>
+            <p>
+              Every notice must be vetted and checked by the assigned advocate.
+              Necessary corrections and updates, reasoned review notes and
+              approval of the exact saved draft are mandatory before signature
+              or issuance. These are platform safeguards; they are not a
+              representation that BCI has approved the platform or its
+              commercial model.
+            </p>
+            <p>
+              Administrator authority-letter checks, payment, AI generation and
+              an active login do not substitute for independent professional
+              review. Practising credentials must be checked against the
+              relevant State Bar Council and applicable supporting requirements.
+              No account or form submission by itself confirms an
+              advocate–client engagement.
+            </p>
+            <p>
+              Advocates retain control over conflicts, client instructions,
+              confidentiality, applicable law and deadlines, engagement scope
+              and the appropriate communication route, including represented
+              counterparties. No advocate rankings, success-rate claims,
+              guaranteed outcomes or outcome-based fees are offered.
+            </p>
+            <p>
+              BCI restrictions on advertising/solicitation, unauthorised
+              practice and arrangements for sharing remuneration with
+              non-advocates require separate assessment of the actual operator,
+              public website, engagement and payment arrangements. Calling a
+              payment a “platform fee” does not decide its lawfulness. New
+              production financial processing stays paused until independent
+              legal review is recorded in deployment configuration; existing
+              records and callbacks remain available.
+            </p>
+            <p>
+              Sources:{" "}
+              <a
+                href="https://www.pib.gov.in/PressReleasePage.aspx?PRID=2043470"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Ministry of Law and Justice: online legal services
+              </a>
+              ;{" "}
+              <a
+                href="https://ksbc.org.in/advo_act64.php"
+                target="_blank"
+                rel="noreferrer"
+              >
+                BCI Rules: professional conduct
+              </a>
+              ;{" "}
+              <a
+                href="https://ksbc.org.in/advo_act68.php"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Conditions for right to practise
+              </a>
+              .
+            </p>
+            <p>
+              The policies below must be reconciled with existing engagements
+              and independently reviewed before production launch. Historical
+              client agreements and financial records are not changed by this
+              development update.
+            </p>
+          </section>
+        )}
         <div className="legal-policy">
           {item ? (
             <div

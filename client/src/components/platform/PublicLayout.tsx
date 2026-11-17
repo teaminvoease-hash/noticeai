@@ -31,7 +31,7 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
           </Link>
           <Button asChild size="sm">
             <Link to="/client-signup">
-              Get started
+              Workspace access
               <ArrowRight />
             </Link>
           </Button>

@@ -1,3 +1,4 @@
+import ProfessionalNotice from "./ProfessionalNotice";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -205,6 +206,7 @@ export default function Dashboard({ role }: { role: Role }) {
       }
     >
       <div className="modern-dashboard">
+        <ProfessionalNotice />
         <p role="alert" className="mb-4 text-sm text-red-700">
           {error}
         </p>
@@ -257,7 +259,11 @@ export default function Dashboard({ role }: { role: Role }) {
               ) : !mine.length ? (
                 <div className="dashboard-empty">
                   <CheckCircle size={30} weight="duotone" />
-                  <strong>No matters waiting on you</strong>
+                  <strong>
+                    {rows?.length
+                      ? "Your matters are with the team"
+                      : "No matters waiting on you"}
+                  </strong>
                   <p>
                     New work will appear here when a handoff needs your action.
                   </p>
@@ -271,10 +277,11 @@ export default function Dashboard({ role }: { role: Role }) {
                         "/matters/" +
                         n._id +
                         "#" +
-                        (n.workflow.step === 3 &&
-                        !/document/i.test(n.workflow.label)
-                          ? "draft"
-                          : sections[n.workflow.step])
+                        (n.workflow.section ||
+                          (n.workflow.step === 3 &&
+                          !/document/i.test(n.workflow.label)
+                            ? "draft"
+                            : sections[n.workflow.step]))
                       }
                     >
                       <span className="queue-icon">
@@ -282,6 +289,17 @@ export default function Dashboard({ role }: { role: Role }) {
                       </span>
                       <span className="min-w-0 flex-1">
                         <strong>{n.subject}</strong>
+                        <small>{n.workflow.nextAction}</small>
+                        <small>
+                          {n.workflow.nextUpdateAt
+                            ? "Next update: " +
+                              new Date(n.workflow.nextUpdateAt).toLocaleString(
+                                "en-IN",
+                                { timeZone: "Asia/Kolkata" },
+                              ) +
+                              " IST"
+                            : "Next update not yet scheduled"}
+                        </small>
                         <small>
                           {n.noticeId} · {n.workflow.label}
                         </small>
@@ -422,10 +440,29 @@ export default function Dashboard({ role }: { role: Role }) {
             ) : (
               <div className="dashboard-matter-list">
                 {shown.slice(0, 30).map((n) => (
-                  <Link key={n._id} to={"/matters/" + n._id}>
+                  <Link
+                    key={n._id}
+                    to={
+                      "/matters/" +
+                      n._id +
+                      "#" +
+                      (n.workflow.section || "next-action")
+                    }
+                  >
                     <div className="dashboard-matter-name">
                       <span>{n.noticeId}</span>
                       <strong>{n.subject}</strong>
+                      <small>{n.workflow.nextAction}</small>
+                      <small>
+                        {n.workflow.nextUpdateAt
+                          ? "Next update: " +
+                            new Date(n.workflow.nextUpdateAt).toLocaleString(
+                              "en-IN",
+                              { timeZone: "Asia/Kolkata" },
+                            ) +
+                            " IST"
+                          : "Next update not yet scheduled"}
+                      </small>
                       {role !== "client" && <small>{n.clientName}</small>}
                     </div>
                     <Badge

@@ -1,4 +1,7 @@
-const AiWorkspace=lazy(()=>import('./components/platform/AiWorkspace'));
+import ProfessionalNotice from "./components/platform/ProfessionalNotice";
+import HandoffPanel from "./components/platform/HandoffPanel";
+import VettingPanel from "./components/platform/VettingPanel";
+const AiWorkspace = lazy(() => import("./components/platform/AiWorkspace"));
 import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -10,7 +13,10 @@ import { AuthorityPanel } from "./Authority";
 import { fetchData, FileUpload } from "./helper/ApiCall";
 import "react-quill/dist/quill.snow.css";
 const Editor = lazy(() => import("react-quill"));
-const dates = (v) => (v ? new Date(v).toLocaleString("en-IN") : "Not recorded");
+const dates = (v) =>
+  v
+    ? new Date(v).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) + " IST"
+    : "Not recorded";
 function FileLink({ file, children }) {
   return file ? (
     <a
@@ -255,9 +261,9 @@ export default function MatterPage() {
   const n = data?.notice,
     isClient = role === "client",
     isReviewer = ["admin", "lawyer"].includes(role),
-    reviewed = ["approved", "verified"].includes(
-      String(n?.status).toLowerCase(),
-    ),
+    reviewed =
+      !!n?.professionalReview &&
+      ["approved", "verified"].includes(String(n?.status).toLowerCase()),
     frozen = !!n?.signedFile;
   return (
     <Layout
@@ -314,9 +320,11 @@ export default function MatterPage() {
               <strong>{data.workflow.label}</strong> ·{" "}
               {data.workflow.owner
                 ? "Next action: " +
-                  (data.workflow.owner === "lawyer"
-                    ? "advocate"
-                    : data.workflow.owner)
+                  ({
+                    lawyer: "assigned advocate",
+                    admin: "administration",
+                    client: "client",
+                  }[data.workflow.owner] || data.workflow.owner)
                 : "Complete"}
             </p>
             <dl className="matter-summary">
@@ -337,6 +345,8 @@ export default function MatterPage() {
             </dl>
             <nav className="matter-nav" aria-label="Matter sections">
               {[
+                ["next-action", "Next steps"],
+                ["professional-review", "Mandatory advocate review"],
                 ["facts", "Facts"],
                 ["authority", "Authority"],
                 ["documents", "Documents"],
@@ -351,6 +361,14 @@ export default function MatterPage() {
               ))}
             </nav>
           </section>
+          <ProfessionalNotice />
+          <HandoffPanel
+            matterId={id}
+            workflow={data.workflow}
+            role={role}
+            updatedAt={n.updatedAt}
+            onUpdated={load}
+          />
           <section
             className="form-panel matter-section"
             id="facts"
@@ -633,8 +651,40 @@ export default function MatterPage() {
               </article>
             ))}
           </section>
-    <Suspense fallback={<p role="status">Loading document intelligence tools…</p>}><AiWorkspace matterId={id} role={role} revision={n.draftRevision||0} paymentStatus={n.paymentStatus} signedFile={n.signedFile} files={[n.supportingDocument,...(n.supportingDocuments||[]),...data.documents.flatMap(d=>[d.fileName,...(d.responseFiles||[])])].filter(Boolean)} caseSummary={n.caseSummary} hasDraft={!!n.generatedNotice?.trim()} onApplied={load} onAdoptFacts={isClient&&n.paymentStatus!=='Paid'&&!n.lawyerId?(text)=>{setFacts({subject:n.subject,caseSummary:text});setEditFacts(true);document.getElementById('facts')?.scrollIntoView({block:'start'});}:undefined}/></Suspense>
-      <section
+          <Suspense
+            fallback={<p role="status">Loading document intelligence tools…</p>}
+          >
+            <AiWorkspace
+              matterId={id}
+              role={role}
+              revision={n.draftRevision || 0}
+              paymentStatus={n.paymentStatus}
+              signedFile={n.signedFile}
+              files={[
+                n.supportingDocument,
+                ...(n.supportingDocuments || []),
+                ...data.documents.flatMap((d) => [
+                  d.fileName,
+                  ...(d.responseFiles || []),
+                ]),
+              ].filter(Boolean)}
+              caseSummary={n.caseSummary}
+              hasDraft={!!n.generatedNotice?.trim()}
+              onApplied={load}
+              onAdoptFacts={
+                isClient && n.paymentStatus !== "Paid" && !n.lawyerId
+                  ? (text) => {
+                      setFacts({ subject: n.subject, caseSummary: text });
+                      setEditFacts(true);
+                      document
+                        .getElementById("facts")
+                        ?.scrollIntoView({ block: "start" });
+                    }
+                  : undefined
+              }
+            />
+          </Suspense>
+          <section
             className="form-panel matter-section"
             id="assignment"
             tabIndex={-1}
@@ -809,43 +859,15 @@ export default function MatterPage() {
                 )}
               </>
             )}
-            {isReviewer && !frozen && n.paymentStatus === "Paid" && (
-              <div className="review-controls">
-                <p>
-                  Record professional review only after checking the draft and
-                  supporting records.
-                </p>
-                {pendingDocuments && (
-                  <p>
-                    <a href="#documents">
-                      Resolve and review all document responses
-                    </a>{" "}
-                    before recording approval.
-                  </p>
-                )}
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={busy || editing || reviewed || pendingDocuments}
-                  onClick={() =>
-                    act(
-                      () =>
-                        api(
-                          "/api/client-portal/notices/" + id + "/status",
-                          "POST",
-                          {
-                            status: "approved",
-                            revision: n.draftRevision || 0,
-                          },
-                        ),
-                      "Professional review approval recorded.",
-                    )
-                  }
-                >
-                  Record review approval
-                </button>
-              </div>
-            )}
+            <VettingPanel
+              matterId={id}
+              role={role}
+              revision={n.draftRevision || 0}
+              paid={n.paymentStatus === "Paid"}
+              frozen={frozen}
+              updatedAt={n.updatedAt}
+              onUpdated={load}
+            />
             <h3>Saved draft versions</h3>
             {!versions.length && (
               <p>
@@ -934,7 +956,8 @@ export default function MatterPage() {
                 <p>
                   Authority approval and configured pricing are required before
                   the gateway can open. No payment is taken when you submit a
-                  notice request. If online payment is unavailable, contact the administrator for a reconciled payment option.
+                  notice request. If online payment is unavailable, contact the
+                  administrator for a reconciled payment option.
                 </p>
                 <button
                   type="button"
@@ -942,7 +965,9 @@ export default function MatterPage() {
                   disabled={busy || !data.capabilities?.paymentGateway}
                   onClick={pay}
                 >
-                  {data.capabilities?.paymentGateway?'Continue to payment gateway':'Online payments unavailable'}
+                  {data.capabilities?.paymentGateway
+                    ? "Continue to payment gateway"
+                    : "Online payments unavailable"}
                 </button>
               </>
             )}

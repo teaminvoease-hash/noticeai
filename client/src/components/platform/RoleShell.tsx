@@ -108,6 +108,7 @@ const nav: Record<Role, NavItem[]> = {
     },
   ],
   admin: [
+    {key:"credentials",label:"Credential checks",to:"/admin-credential-checks",icon:ShieldCheck},
     {
       key: "enquiries",
       label: "Business enquiries",
@@ -341,7 +342,7 @@ export default function RoleShell({
       <aside className="shell-sidebar">{navigation()}</aside>
       <Dialog open={mobile} onOpenChange={setMobile}>
         <DialogContent
-          className="shell-mobile-dialog"
+          className="shell-mobile-dialog" placement="left"
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             mobileTrigger.current?.focus();

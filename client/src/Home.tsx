@@ -1,3 +1,4 @@
+import ProfessionalNotice from "@/components/platform/ProfessionalNotice";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -86,6 +87,7 @@ export default function Home() {
   return (
     <PublicLayout>
       <main>
+        <ProfessionalNotice />
         <section className="premium-hero">
           <div className="premium-hero-copy">
             <Badge className="mb-6 border-blue-100 bg-blue-50 text-blue-700">
@@ -104,7 +106,7 @@ export default function Home() {
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild size="lg">
                 <Link to={start}>
-                  Start a notice request
+                  Open your private workspace
                   <ArrowUpRight />
                 </Link>
               </Button>
@@ -182,7 +184,7 @@ export default function Home() {
                 <h3>{item.title}</h3>
                 <p>{item.text}</p>
                 <Link to={start}>
-                  Prepare a request
+                  Organise matter records
                   <ArrowUpRight size={15} />
                 </Link>
               </Card>
@@ -216,7 +218,7 @@ export default function Home() {
                 [
                   "02",
                   "Prepare and review",
-                  "Use optional AI assistance with authorisation, then coordinate independent advocate review.",
+                  "AI is optional preliminary assistance. The assigned advocate must vet, check, correct and update the draft before approval.",
                 ],
                 [
                   "03",
@@ -245,7 +247,7 @@ export default function Home() {
           <div className="premium-review-image">
             <img
               src="/assets/reference/advocate-photo.webp"
-              alt="An advocate reviewing matter documents"
+              alt="Illustrative document review, not an advocate endorsement"
             />
           </div>
           <div>
@@ -257,8 +259,9 @@ export default function Home() {
             </h2>
             <p>
               Keep the request, source records, document corrections and saved
-              draft versions together. Independent advocates retain
-              responsibility for legal judgment and review.
+              draft versions together. Independent advocates must verify facts
+              and law, make necessary corrections and updates, and personally
+              approve the saved version before signature or issuance.
             </p>
             <ul>
               {[
@@ -295,16 +298,16 @@ export default function Home() {
             <h3>
               {pricing?.available && pricing.amount
                 ? "₹" + pricing.amount.toLocaleString("en-IN")
-                : "Discuss your requirement"}
+                : "Private scope and fee confirmation"}
             </h3>
             <p>
               {pricing?.available
                 ? "Current published standard service amount. Confirm matter scope and applicable taxes with the team."
-                : "The team can explain the appropriate process, current pricing and required records."}
+                : "Scope and fees require a separate, lawful engagement. The application does not rank advocates, promise recovery or sell a guaranteed legal outcome."}
             </p>
             <Button asChild>
               <Link to="/contact">
-                Contact the team
+                Platform support
                 <ArrowRight />
               </Link>
             </Button>
