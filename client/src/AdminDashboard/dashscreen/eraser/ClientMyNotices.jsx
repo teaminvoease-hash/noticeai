@@ -550,10 +550,10 @@ const ClientMyNotices = () => {
                       </button>
                       <Link
                         className="tiny-btn"
-                        to={`/client-notice-submission?edit=${notice._id}`}
+                        to={`/matters/${notice._id}#facts`}
                         state={{ editNotice: notice }}
                       >
-                        Edit
+                        Open matter
                       </Link>
                     </td>
                   </tr>

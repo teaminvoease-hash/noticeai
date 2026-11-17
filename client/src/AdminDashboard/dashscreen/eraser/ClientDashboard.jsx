@@ -1,3 +1,4 @@
+import ClientPortalLayout from './ClientPortalLayout';
 import WorkflowBoard from '../../../WorkflowBoard';
 import {AuthorityPanel} from '../../../Authority';
 import {signOut} from '../../../session';
@@ -126,47 +127,7 @@ const ClientDashboard = () => {
       .slice(0, 4);
   }, [documents]);
 
-  return (
-    <div className="dashboard-body">
-      <main className={`app-shell ${sidebarOpen ? "sidebar-open" : ""}`} id="appShell">
-        <aside className="app-sidebar">
-          <div className="brand-wrap">
-            <h2>ResolveX</h2>
-            <p>Client workspace</p>
-          </div>
-          <nav className="side-nav">
-            <Link to="/client-dashboard" className="side-link active">Dashboard</Link>
-            <Link to="/client-defaulters" className="side-link">Recipients</Link>
-            <Link to="/client-defaulters-create" className="side-link">Add Recipient</Link>
-            <Link to="/client-notice-submission" className="side-link">Request a Notice</Link>
-            <Link to="/client-my-notices" className="side-link">My Notices</Link>
-            <Link to="/client-documents" className="side-link">Documents</Link>
-            <Link to="/client-payments" className="side-link">Payments</Link>
-            <Link to="/client-profile" className="side-link">Profile</Link>
-          </nav>
-          <div className="side-footer">
-            Authority Letter is mandatory before payment and draft generation.
-          </div>
-        </aside>
-        <div className="mobile-overlay" id="mobileOverlay" onClick={() => setSidebarOpen(false)} />
-
-        <section className="app-main">
-          <header className="top-header">
-            <div className="header-left">
-              <button className="menu-toggle" id="menuToggle" type="button" onClick={() => setSidebarOpen((p) => !p)}>Menu</button>
-              <div className="header-title">
-                <h1>Client Dashboard</h1>
-                <p>Track live notice status, document requests, payments, and client activity.</p>
-              </div>
-            </div>
-            <div className="header-actions">
-              <button className="btn btn-light" onClick={() => signOut("client")} >Logout</button>
-              <Link className="btn btn-primary" to="/client-notice-submission">New Notice</Link>
-              <div className="avatar-chip">{clientInitials}</div>
-            </div>
-          </header>
-
-          <div className="app-content"><AuthorityPanel clientId={clientId} compact/><WorkflowBoard/><section className="getting-started"><div><p className="eyebrow">YOUR NEXT STEP</p><h2>Start with the facts. Track every handoff.</h2><p>Add your business authority letter, save the recipient and describe your matter.</p></div><div className="start-steps"><Link to="/client-profile">01 · Complete your profile →</Link><Link to="/client-defaulters-create">02 · Add a recipient →</Link><Link to="/client-notice-submission">03 · Request a notice →</Link></div></section>
+  return <ClientPortalLayout activeKey="dashboard" title="Client Dashboard" subtitle="Track notice progress, documents, payments and your next action." actions={<Link className="btn btn-primary" to="/client-notice-submission">New Notice</Link>}><AuthorityPanel clientId={clientId} compact/><WorkflowBoard/><section className="getting-started"><div><p className="eyebrow">YOUR NEXT STEP</p><h2>Start with the facts. Track every handoff.</h2><p>Add your business authority letter, save the recipient and describe your matter.</p></div><div className="start-steps"><Link to="/client-profile">01 · Complete your profile →</Link><Link to="/client-defaulters-create">02 · Add a recipient →</Link><Link to="/client-notice-submission">03 · Request a notice →</Link></div></section>
             <section
               className="panel"
               style={{
@@ -332,13 +293,7 @@ const ClientDashboard = () => {
                 )}
               </article>
             </section>
-          </div>
-        </section>
-      </main>
-
-
-    </div>
-  );
+</ClientPortalLayout>;
 };
 
 export default ClientDashboard;

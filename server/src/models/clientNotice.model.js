@@ -3,6 +3,7 @@ const Schema = mongoose.Schema;
 
 const clientNoticeSchema = new Schema(
   {
+    intakeDraftId: {type:String,unique:true,sparse:true}, draftRevision:{type:Number,default:0},
     signedFile: String, courier: String, trackingId: String, dispatchDate: String,
     deliveryStatus: String, proofOfDelivery: String,
     clientId: { type: String, required: true },
@@ -16,6 +17,7 @@ const clientNoticeSchema = new Schema(
     lawyerCode: { type: String, default: "" },
     recipientDetails: { type: String, default: "" },
     caseSummary: { type: String, default: "" },
+    supportingDocuments:[String],
     supportingDocument: { type: String, default: "" },
     authorityLetter: { type: String, required: true },
     generatedNotice: { type: String, default: "" },

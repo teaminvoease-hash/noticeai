@@ -472,6 +472,7 @@ const submitNotice = async (req, res) => {
 
     const created = await ClientNotice.create({
       clientId,
+      ...(req.body.intakeDraftId?{intakeDraftId:req.body.intakeDraftId,supportingDocuments:req.body.supportingDocuments||[]}:{}),
       noticeId: await generateClientNoticeId(),
       subject,
       category,
@@ -586,6 +587,7 @@ const updateNotice = async (req, res) => {
       return res.status(200).json({ success: false, message: "You can update only your own notice" });
     }
 
+    if(req.body.draftRevision!==undefined&&req.body.draftRevision!==(existing.draftRevision||0))return res.status(409).json({success:false,message:'The request changed. Reload before editing the facts.'});
     const defaulter = await ClientDefaulter.findById(defaulterId);
     if (!defaulter || String(defaulter.clientId) !== String(clientId)) {
       return res.status(200).json({
@@ -603,8 +605,8 @@ const updateNotice = async (req, res) => {
       caseSummary,
     });
 
-    const updated = await ClientNotice.findByIdAndUpdate(
-      req.params.id,
+    const updated = await require("../matterServices").replaceRequest(
+      req, existing,
       {
         subject,
         category,
@@ -615,8 +617,7 @@ const updateNotice = async (req, res) => {
         supportingDocument: supportingDocument || "",
         authorityLetter: client.authorityLetter,
         generatedNotice,
-      },
-      { new: true }
+      }
     );
 
     return res.status(200).json({ success: true, message: "Notice updated successfully", data: updated });

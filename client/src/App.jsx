@@ -3,6 +3,8 @@ import React,{lazy,Suspense} from 'react';
 import {BrowserRouter,Routes,Route,Navigate} from 'react-router-dom';
 import {useSelector} from 'react-redux';
 import Home from './Home';
+import MatterPage from './MatterPage';
+import './matters.css';
 import './portal.css';
 import './enhancements.css';
 import './upgrade.css';
@@ -21,7 +23,7 @@ const AdminDocumentsCreatePage=lazy(()=>import('./AdminDashboard/dashscreen/eras
 const AdminTemplatesPage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/AdminTemplatesPage'));
 const AdminTemplatesCreatePage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/AdminTemplatesCreatePage'));
 const ClientDashboard=lazy(()=>import('./AdminDashboard/dashscreen/eraser/ClientDashboard'));
-const ClientNoticeSubmission=lazy(()=>import('./AdminDashboard/dashscreen/eraser/ClientNoticeSubmission'));
+const ClientNoticeSubmission=lazy(()=>import('./GuidedRequest'));
 const ClientDefaultersPage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/ClientDefaultersPage'));
 const ClientDefaultersCreatePage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/ClientDefaultersCreatePage'));
 const ClientMyNotices=lazy(()=>import('./AdminDashboard/dashscreen/eraser/ClientMyNotices'));
@@ -39,8 +41,9 @@ const ClientLogin=lazy(()=>import('./AdminDashboard/dashscreen/eraser/ClientLogi
 const ClientRegister=lazy(()=>import('./AdminDashboard/dashscreen/eraser/ClientRegister'));
 const LawyerLogin=lazy(()=>import('./AdminDashboard/dashscreen/eraser/LawyerLogin'));
 const LawyerRegister=lazy(()=>import('./AdminDashboard/dashscreen/eraser/LawyerRegister'));
+function MatterRoute(){const user=useSelector(s=>s.userReducer.userData);return ['client','admin','lawyer'].includes(user?.role)?<MatterPage/>:<Navigate to='/client-login' replace/>}
 function Protected({role,children}){const user=useSelector(s=>s.userReducer.userData);return user?.role===role?children:<Navigate to={'/'+role+'-login'} replace/>}
-export default function App(){return <BrowserRouter><Suspense fallback={<main className="auth-panel">Loading portal…</main>}><Routes><Route path="/admin-operations" element={<Protected role="admin"><Operations/></Protected>}/><Route path="/" element={<Home/>}/>
+export default function App(){return <BrowserRouter><Suspense fallback={<main className="auth-panel">Loading portal…</main>}><Routes><Route path="/matters/:id" element={<MatterRoute/>}/><Route path="/admin-operations" element={<Protected role="admin"><Operations/></Protected>}/><Route path="/" element={<Home/>}/>
 <Route path="/admin-dashboard" element={<Protected role="admin"><AdminDashboard/></Protected>}/>
 <Route path="/admin-users" element={<Protected role="admin"><AdminUsersPage/></Protected>}/>
 <Route path="/admin-users-create" element={<Protected role="admin"><AdminUsersCreatePage/></Protected>}/>
