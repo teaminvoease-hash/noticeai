@@ -1,53 +1,86 @@
+import ClassicHeader from "./ClassicHeader";
 import { useHashNavigation } from "@/hooks/useHashNavigation";
 import StagingBanner from "./StagingBanner";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Scales, ArrowRight } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-export default function PublicLayout({ children }: { children: ReactNode }) {
+export default function PublicLayout({
+  children,
+  appearance,
+  requestTo = "/client-signup",
+}: {
+  children: ReactNode;
+  appearance?: "classic";
+  requestTo?: string;
+}) {
   useHashNavigation();
   return (
-    <div className="public-platform">
+    <div
+      className={
+        "public-platform" +
+        (appearance === "classic" ? " resolvex-landing" : "")
+      }
+    >
       <StagingBanner />
-      <div className="public-announcement">
-        <span>Business notice management, from facts to final record.</span>
-        <a href="tel:9266478940">+91 9266478940</a>
-      </div>
-      <header className="public-nav">
-        <Link to="/" className="public-logo">
-          <span>
-            <Scales size={23} weight="duotone" />
-          </span>
-          <div>
-            ResolveX<small>BY CREDEND</small>
+      {appearance === "classic" ? (
+        <ClassicHeader requestTo={requestTo} />
+      ) : (
+        <>
+          <div className="public-announcement">
+            <span>Business notice management, from facts to final record.</span>
+            <a href="tel:9266478940">+91 9266478940</a>
           </div>
-        </Link>
-        <nav aria-label="Public navigation">
-          <Link to="/#workflow">How it works</Link>
-          <Link to="/#coverage">Use cases</Link>
-          <Link to="/contact">Contact</Link>
-          <Link to="/client-login" className="public-login">
-            Log in
-          </Link>
-          <Button asChild size="sm">
-            <Link to="/client-signup">
-              Workspace access
-              <ArrowRight />
+          <header className="public-nav">
+            <Link to="/" className="public-logo">
+              <span>
+                <Scales size={23} weight="duotone" />
+              </span>
+              <div>
+                ResolveX<small>BY CREDEND</small>
+              </div>
             </Link>
-          </Button>
-        </nav>
-      </header>
+            <nav aria-label="Public navigation">
+              <Link to="/#workflow">How it works</Link>
+              <Link to="/#coverage">Use cases</Link>
+              <Link to="/contact">Contact</Link>
+              <Link to="/client-login" className="public-login">
+                Log in
+              </Link>
+              <Button asChild size="sm">
+                <Link to="/client-signup">
+                  Workspace access
+                  <ArrowRight />
+                </Link>
+              </Button>
+            </nav>
+          </header>
+        </>
+      )}
       {children}
       <footer className="public-footer">
         <div>
-          <Link to="/" className="public-logo">
-            <span>
-              <Scales size={23} />
-            </span>
-            <div>
-              ResolveX<small>BY CREDEND</small>
-            </div>
-          </Link>
+          {appearance === "classic" ? (
+            <Link
+              to="/"
+              className="rx-brand"
+              aria-label="ResolveX by CredEnd home"
+            >
+              <strong>
+                Resolve<span>X</span>
+              </strong>
+              <small>by CredEnd</small>
+            </Link>
+          ) : (
+            <Link to="/" className="public-logo">
+              <span>
+                <Scales size={23} />
+              </span>
+              <div>
+                ResolveX<small>BY CREDEND</small>
+              </div>
+            </Link>
+          )}
           <p>
             Structured preparation. Professional review.
             <br />A clearer record of every business notice.

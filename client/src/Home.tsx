@@ -1,60 +1,89 @@
-import ProfessionalNotice from "@/components/platform/ProfessionalNotice";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import {
   ArrowRight,
   ArrowUpRight,
-  ShieldCheck,
-  FileText,
-  Scales,
   Buildings,
   CheckCircle,
+  FileText,
   FlowArrow,
   FolderOpen,
-  Wallet,
-  Users,
-  Briefcase,
-  Trademark,
   HouseLine,
+  MagnifyingGlass,
+  Scales,
+  ShieldCheck,
+  Trademark,
+  Users,
+  Wallet,
+  Briefcase,
 } from "@phosphor-icons/react";
 import PublicLayout from "@/components/platform/PublicLayout";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import ProfessionalNotice from "@/components/platform/ProfessionalNotice";
+import categories from "@/data/categories.json";
 import { api } from "@/lib/api";
+import { requestAuthPath, requestDestination } from "@/lib/requestIntent.mjs";
 import type { SessionUser } from "@/types/platform";
-const cases = [
+import "./landing.css";
+const functions = [
   {
     icon: Wallet,
-    title: "Payments & finance",
-    text: "Organise outstanding invoices, refunds, documented debt and payment obligations.",
+    title: "Finance & accounts",
+    group: "Payments & Finance",
+    text: "Outstanding invoices, documented debt, refunds and payment obligations.",
   },
   {
     icon: Briefcase,
-    title: "Contracts & vendors",
-    text: "Bring purchase orders, service commitments and contract performance into one record.",
+    title: "Contracts & procurement",
+    group: "Contracts & Procurement",
+    text: "Purchase orders, supplier commitments, service quality and contract performance.",
   },
   {
     icon: Users,
-    title: "Employment & HR",
-    text: "Structure employment dues, exit obligations and confidentiality-related matters.",
+    title: "HR & people operations",
+    group: "HR & Employment",
+    text: "Employment dues, exit obligations, show-cause and confidentiality matters.",
   },
   {
     icon: Buildings,
-    title: "Commercial operations",
-    text: "Coordinate distributor, logistics, partnership and recurring commercial issues.",
+    title: "Operations & commercial",
+    group: "Operations & Commercial",
+    text: "Logistics, distribution, franchise, partnership and commercial relationships.",
   },
   {
     icon: Trademark,
-    title: "Brand & data",
-    text: "Prepare the facts around confidentiality, intellectual property and brand concerns.",
+    title: "Brand, data & IP",
+    group: "Brand, Data & Intellectual Property",
+    text: "Brand misuse, intellectual property, privacy and confidentiality concerns.",
   },
   {
     icon: HouseLine,
     title: "Property & consumer",
-    text: "Keep tenancy, warranty, property and other formal demands clearly documented.",
+    group: "Property, Consumer & General",
+    text: "Tenancy, property, warranty, service claims and other formal demands.",
   },
+];
+const journey = [
+  [
+    "01",
+    "Tell us what happened",
+    "Choose the matter type, add the recipient and explain the facts. Your request can be saved and resumed.",
+  ],
+  [
+    "02",
+    "Organise the records",
+    "Upload supporting documents and complete the authority-letter process. Scope and fees are agreed separately.",
+  ],
+  [
+    "03",
+    "Mandatory advocate review",
+    "The assigned advocate checks facts and law, makes necessary corrections and updates, and approves the exact saved draft.",
+  ],
+  [
+    "04",
+    "Sign, dispatch and track",
+    "The actual signed notice and recorded dispatch, delivery and team updates stay together in your matter.",
+  ],
 ];
 export default function Home() {
   const user = useSelector(
@@ -62,11 +91,13 @@ export default function Home() {
       (s as { userReducer: { userData: SessionUser | "" } }).userReducer
         .userData,
   );
-  const start = user
-    ? user.role === "client"
-      ? "/client-notice-submission"
-      : "/" + user.role + "-dashboard"
-    : "/client-signup";
+  const start = (category = "") =>
+    user
+      ? user.role === "client"
+        ? requestDestination(category)
+        : "/" + user.role + "-dashboard"
+      : requestAuthPath("/client-signup", requestDestination(category));
+  const [query, setQuery] = useState("");
   const [pricing, setPricing] = useState<{
     available: boolean;
     amount?: number;
@@ -80,286 +111,430 @@ export default function Home() {
       .catch(() =>
         setPricing({
           available: false,
-          note: "Contact the team for current pricing and matter scope.",
+          note: "Scope and lawful fees are confirmed privately before work proceeds.",
         }),
       );
   }, []);
+  const total = Object.values(categories).flat().length;
+  const results = Object.entries(categories)
+    .map(([group, items]) => ({
+      group,
+      items: items.filter((t) =>
+        (group + " " + t).toLowerCase().includes(query.trim().toLowerCase()),
+      ),
+    }))
+    .filter((g) => g.items.length);
   return (
-    <PublicLayout>
-      <main>
-        <ProfessionalNotice />
-        <section className="premium-hero">
-          <div className="premium-hero-copy">
-            <Badge className="mb-6 border-blue-100 bg-blue-50 text-blue-700">
-              <span className="mr-2 size-1.5 rounded-full bg-blue-500" />
-              BUSINESS NOTICE INTELLIGENCE
-            </Badge>
-            <h1>
-              Every notice.
-              <br />A clear path <em>forward.</em>
-            </h1>
-            <p>
-              Bring facts, documents, advocate review and delivery into one
-              secure workspace. A structured process for the business matters
-              that deserve a careful response.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Button asChild size="lg">
-                <Link to={start}>
-                  Open your private workspace
-                  <ArrowUpRight />
+    <PublicLayout appearance="classic" requestTo={start()}>
+      <main id="landing-main">
+        <section className="rx-hero" aria-labelledby="landing-title">
+          <div className="rx-container rx-hero-grid">
+            <div className="rx-hero-copy">
+              <p className="rx-eyebrow">Business-wide notice management</p>
+              <h1 id="landing-title">
+                The notice
+                <br />
+                workspace for
+                <br />
+                <em>modern companies.</em>
+              </h1>
+              <p className="rx-lead">
+                Organise business notice requests, supporting records and
+                mandatory advocate review in one clear workspace.
+              </p>
+              <div className="rx-actions">
+                <Link className="rx-button rx-gold" to={start()}>
+                  Create a notice request <ArrowRight size={18} />
                 </Link>
-              </Button>
-              <Button asChild variant="outline" size="lg">
-                <a href="#workflow">
-                  Explore the workflow
-                  <ArrowRight />
+                <a className="rx-button rx-outline" href="#coverage">
+                  Explore use cases
                 </a>
-              </Button>
-            </div>
-            <p className="premium-hero-note">
-              <ShieldCheck size={16} />
-              Private documents · Role-based access · Independent professional
-              review
-            </p>
-          </div>
-          <div className="premium-hero-art">
-            <div className="hero-picture">
-              <img
-                src="/assets/reference/hero-visual.webp"
-                alt="Business professionals reviewing a notice management workspace"
-              />
-              <span>Illustrative workspace preview</span>
-            </div>
-            <Card className="hero-assurance">
-              <span className="hero-assurance-icon">
-                <Scales size={23} />
-              </span>
-              <div>
-                <strong>Professional judgment at every handoff</strong>
-                <small>Prepare → Review → Sign → Track</small>
               </div>
-              <CheckCircle size={22} className="text-emerald-600" />
-            </Card>
+              <div className="rx-proof" aria-label="Platform capabilities">
+                <div>
+                  <strong>{total}</strong>
+                  <span>Notice categories</span>
+                </div>
+                <div>
+                  <strong>8 stages</strong>
+                  <span>One visible workflow</span>
+                </div>
+                <div>
+                  <strong>Saved drafts</strong>
+                  <span>Continue when ready</span>
+                </div>
+              </div>
+              <aside
+                className="rx-hero-review"
+                aria-label="Mandatory advocate review"
+              >
+                <Scales size={20} />
+                <p>
+                  <strong>Advocate vetting is mandatory.</strong> The assigned
+                  advocate must check every notice and make necessary
+                  corrections and updates before approval, signature and
+                  issuance. <Link to="/compliance">Review policy</Link>
+                </p>
+              </aside>
+            </div>
+            <div className="rx-hero-visual">
+              <figure className="rx-hero-frame">
+                <img
+                  src="/assets/reference/hero-visual.webp"
+                  alt="Illustrative business notice workspace, not a live client dashboard"
+                  width="562"
+                  height="295"
+                  fetchPriority="high"
+                />
+                <figcaption>Illustrative workspace preview</figcaption>
+              </figure>
+              <div className="rx-float rx-float-top">
+                <span className="rx-icon">
+                  <Buildings size={23} />
+                </span>
+                <div>
+                  <strong>Company-wide intake</strong>
+                  <small>Finance · HR · Procurement · Operations</small>
+                </div>
+              </div>
+              <div className="rx-float rx-float-bottom">
+                <FlowArrow size={23} />
+                <div>
+                  <strong>One visible workflow</strong>
+                  <small>Request → Review → Sign → Track</small>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="rx-container rx-trust">
+            {[
+              [FolderOpen, "Records together", "One private matter workspace"],
+              [Scales, "Mandatory review", "Independent advocate judgment"],
+              [FlowArrow, "Clear next steps", "Know who needs to act"],
+              [ShieldCheck, "Controlled access", "Role-based document access"],
+            ].map(([Icon, title, text]) => {
+              const I = Icon as typeof Scales;
+              return (
+                <div key={String(title)}>
+                  <I size={25} />
+                  <span>
+                    <strong>{String(title)}</strong>
+                    <small>{String(text)}</small>
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </section>
-        <div className="premium-trust">
-          {[
-            [FolderOpen, "Private document workspace"],
-            [Scales, "Independent advocate review"],
-            [FlowArrow, "Visible workflow ownership"],
-            [ShieldCheck, "Controlled access to records"],
-          ].map(([Icon, text]) => {
-            const I = Icon as typeof FolderOpen;
-            return (
-              <span key={String(text)}>
-                <I size={18} />
-                {String(text)}
-              </span>
-            );
-          })}
-        </div>
-        <section className="premium-section" id="coverage">
-          <div className="premium-section-heading">
-            <div>
-              <p className="public-eyebrow">BUILT AROUND YOUR BUSINESS</p>
-              <h2>
-                One workspace.
-                <br />
-                Across your business matters.
-              </h2>
-            </div>
+        <section className="rx-section rx-container" id="coverage">
+          <div className="rx-section-heading rx-centered">
+            <p className="rx-eyebrow">Built around your business</p>
+            <h2>
+              Formal notices across the
+              <br />
+              commercial lifecycle.
+            </h2>
             <p>
-              From payment obligations to commercial relationships, start with a
-              structured request. Your advocate determines the appropriate legal
-              framing.
+              Start with your business situation. Your assigned advocate
+              independently determines the legal framing and whether the matter
+              can be accepted.
             </p>
           </div>
-          <div className="premium-usecases">
-            {cases.map((item) => (
-              <Card key={item.title} className="premium-usecase">
-                <span>
-                  <item.icon size={23} weight="duotone" />
+          <div className="rx-departments">
+            {functions.map((f) => (
+              <article className="rx-department" key={f.group}>
+                <span className="rx-icon">
+                  <f.icon size={25} />
                 </span>
-                <h3>{item.title}</h3>
-                <p>{item.text}</p>
-                <Link to={start}>
-                  Organise matter records
-                  <ArrowUpRight size={15} />
-                </Link>
-              </Card>
+                <h3>{f.title}</h3>
+                <p>{f.text}</p>
+                <a
+                  href={"#category-" + Object.keys(categories).indexOf(f.group)}
+                  onClick={() => setQuery("")}
+                >
+                  View notice types <ArrowUpRight size={17} />
+                </a>
+              </article>
             ))}
           </div>
         </section>
-        <section className="premium-workflow" id="workflow">
-          <div className="premium-section">
-            <div className="premium-section-heading">
-              <div>
-                <p className="public-eyebrow">CLEAR FROM THE FIRST STEP</p>
-                <h2>
-                  A better handoff
-                  <br />
-                  at every stage.
-                </h2>
-              </div>
+        <section className="rx-soft" id="workflow">
+          <div className="rx-container rx-section">
+            <div className="rx-section-heading">
+              <p className="rx-eyebrow">
+                From the first fact to the final record
+              </p>
+              <h2>
+                A clear process.
+                <br />A better handoff at every step.
+              </h2>
               <p>
-                Know what is saved, who needs to act next and which records
-                support the matter. Continue an unfinished request whenever you
-                are ready.
+                No guessing what comes next. Each matter shows the responsible
+                role, document requests, draft versions and the latest team
+                update.
               </p>
             </div>
-            <div className="premium-flow-grid">
-              {[
-                [
-                  "01",
-                  "Share the facts",
-                  "Choose a matter type, add the recipient and organise the relevant records.",
-                ],
-                [
-                  "02",
-                  "Prepare and review",
-                  "AI is optional preliminary assistance. The assigned advocate must vet, check, correct and update the draft before approval.",
-                ],
-                [
-                  "03",
-                  "Sign and keep track",
-                  "Access the signed record and administrator-recorded dispatch and delivery updates.",
-                ],
-              ].map(([n, t, d]) => (
+            <div className="rx-journey">
+              {journey.map(([n, title, text]) => (
                 <article key={n}>
                   <span>{n}</span>
-                  <h3>{t}</h3>
-                  <p>{d}</p>
+                  <h3>{title}</h3>
+                  <p>{text}</p>
                 </article>
               ))}
             </div>
-            <div className="premium-workflow-note">
-              <ShieldCheck size={19} />
-              <p>
-                AI output is preliminary and can contain errors. Professional
-                review and signature are separate steps; submission does not
-                issue a notice to the recipient.
-              </p>
+            <div className="rx-workspace-panel">
+              <div>
+                <p className="rx-eyebrow">One matter. One organised record.</p>
+                <h3>
+                  Keep the whole picture
+                  <br />
+                  in your dashboard.
+                </h3>
+                <p>
+                  Pick up a saved request, respond to document corrections,
+                  review recorded payments and access the actual signed notice.
+                </p>
+                <Link to={start()} className="rx-button rx-gold">
+                  Start a notice request <ArrowRight size={18} />
+                </Link>
+              </div>
+              <figure>
+                <img
+                  src="/assets/reference/dashboard-preview.webp"
+                  alt="Illustration of the notice workspace; sample records are not real client data"
+                  width="520"
+                  height="280"
+                  loading="lazy"
+                />
+                <figcaption>
+                  Illustrative dashboard · actual records appear after sign-in
+                </figcaption>
+              </figure>
             </div>
           </div>
         </section>
-        <section className="premium-section premium-review">
-          <div className="premium-review-image">
+        <section className="rx-container rx-section" id="notice-library">
+          <div className="rx-library-head">
+            <div className="rx-section-heading">
+              <p className="rx-eyebrow">Business notice library</p>
+              <h2>
+                Find the closest fit
+                <br />
+                for your situation.
+              </h2>
+              <p>
+                {total} intake categories across six business functions. The
+                category helps organise your request; it does not decide the
+                legal advice.
+              </p>
+            </div>
+            <div className="rx-search">
+              <label htmlFor="notice-search">Search notice types</label>
+              <div>
+                <MagnifyingGlass size={20} />
+                <input
+                  id="notice-search"
+                  type="search"
+                  placeholder="Try invoice, employment or contract"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </div>
+              <p role="status">
+                {results.reduce((n, g) => n + g.items.length, 0)} notice types
+                shown
+              </p>
+            </div>
+          </div>
+          {!results.length ? (
+            <div className="rx-no-results">
+              <h3>No matching notice type</h3>
+              <p>
+                Try a broader term, or describe the situation in a general
+                request.
+              </p>
+              <button
+                className="rx-button rx-outline"
+                onClick={() => setQuery("")}
+              >
+                Clear search
+              </button>
+              <Link to={start()} className="rx-text-link">
+                Start a general request <ArrowRight size={17} />
+              </Link>
+            </div>
+          ) : (
+            <div className="rx-library-grid">
+              {results.map(({ group, items }) => {
+                const Icon = functions.find((f) => f.group === group)!.icon;
+                return (
+                  <article
+                    className="rx-library-card"
+                    id={"category-" + Object.keys(categories).indexOf(group)}
+                    key={group}
+                  >
+                    <header>
+                      <span className="rx-icon">
+                        <Icon size={23} />
+                      </span>
+                      <h3>{group}</h3>
+                    </header>
+                    <ul>
+                      {items.map((name) => (
+                        <li key={name}>
+                          <Link to={start(name)}>
+                            <span>{name}</span>
+                            <ArrowUpRight size={18} />
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+        <section className="rx-review-section rx-container">
+          <div className="rx-review-image">
             <img
               src="/assets/reference/advocate-photo.webp"
+              width="480"
+              height="360"
+              loading="lazy"
               alt="Illustrative document review, not an advocate endorsement"
             />
           </div>
           <div>
-            <p className="public-eyebrow">PREPARATION WITH ACCOUNTABILITY</p>
+            <p className="rx-eyebrow">
+              Technology with professional responsibility
+            </p>
             <h2>
-              Useful technology.
+              AI prepares.
               <br />
-              Professional oversight.
+              Your advocate checks.
             </h2>
             <p>
-              Keep the request, source records, document corrections and saved
-              draft versions together. Independent advocates must verify facts
-              and law, make necessary corrections and updates, and personally
-              approve the saved version before signature or issuance.
+              AI output is preliminary and may contain errors. The assigned
+              advocate must independently verify facts and law, make necessary
+              corrections and updates, and approve the saved draft before a
+              signed notice can be issued.
             </p>
-            <ul>
+            <ul className="rx-checks">
               {[
-                "Source documents remain linked to the matter",
-                "Editable proposals become versioned drafts after review",
-                "Signed notices and delivery records stay accessible",
+                "Authority and instructions checked",
+                "Necessary document corrections reviewed",
+                "Approval tied to the exact saved draft",
+                "Signed notice and recorded delivery kept together",
               ].map((t) => (
                 <li key={t}>
-                  <CheckCircle size={18} />
+                  <CheckCircle size={20} />
                   {t}
                 </li>
               ))}
             </ul>
-            <Button asChild variant="outline">
-              <Link to="/lawyer-signup">
-                Join the advocate workspace
-                <ArrowRight />
-              </Link>
-            </Button>
-          </div>
-        </section>
-        <section className="premium-section premium-pricing">
-          <div>
-            <p className="public-eyebrow">START WITH A CLEAR SCOPE</p>
-            <h2>
-              Your matter.
-              <br />
-              An agreed service scope.
-            </h2>
-            <p>{pricing?.note || "Loading current service pricing…"}</p>
-          </div>
-          <Card className="premium-price-card">
-            <Badge>Notice preparation workflow</Badge>
-            <h3>
-              {pricing?.available && pricing.amount
-                ? "₹" + pricing.amount.toLocaleString("en-IN")
-                : "Private scope and fee confirmation"}
-            </h3>
-            <p>
-              {pricing?.available
-                ? "Current published standard service amount. Confirm matter scope and applicable taxes with the team."
-                : "Scope and fees require a separate, lawful engagement. The application does not rank advocates, promise recovery or sell a guaranteed legal outcome."}
-            </p>
-            <Button asChild>
-              <Link to="/contact">
-                Platform support
-                <ArrowRight />
-              </Link>
-            </Button>
-          </Card>
-        </section>
-        <section className="premium-section premium-faq">
-          <p className="public-eyebrow">BEFORE YOU BEGIN</p>
-          <h2>A few practical answers.</h2>
-          {[
-            [
-              "What should I prepare?",
-              "Your business details, authority letter, recipient details and records supporting the facts. Your reviewer may request further documents.",
-            ],
-            [
-              "Can I save a request before submitting?",
-              "Yes. Unfinished requests are saved to your account. Review the save indicator and use Save and close before leaving.",
-            ],
-            [
-              "Does AI issue the notice?",
-              "AI can assist with preliminary preparation when enabled and authorised. Independent professional review, acceptance and signature are required before issuance.",
-            ],
-            [
-              "How do I track the matter?",
-              "Your dashboard shows the next responsible role. Open the matter for document requests, draft versions, payment records and recorded delivery updates.",
-            ],
-          ].map(([q, a]) => (
-            <details key={q}>
-              <summary>{q}</summary>
-              <p>{a}</p>
-            </details>
-          ))}
-        </section>
-        <section className="premium-final-cta">
-          <div>
-            <p className="public-eyebrow">A CLEARER WAY TO MOVE FORWARD</p>
-            <h2>
-              Your next notice starts
-              <br />
-              with an organised request.
-            </h2>
-          </div>
-          <Button
-            asChild
-            size="lg"
-            className="bg-white text-slate-900 hover:bg-slate-100"
-          >
-            <Link to={start}>
-              Open your workspace
-              <ArrowUpRight />
+            <Link className="rx-text-link" to="/compliance">
+              Read the professional review policy <ArrowRight size={17} />
             </Link>
-          </Button>
+          </div>
         </section>
+        <section className="rx-soft" id="scope">
+          <div className="rx-container rx-section rx-scope">
+            <div>
+              <p className="rx-eyebrow">
+                Clear expectations before work begins
+              </p>
+              <h2>
+                Your matter.
+                <br />
+                An agreed scope.
+              </h2>
+              <p>
+                Start by organising the request. Professional engagement, scope,
+                lawful fees, taxes and any third-party expenses must be
+                confirmed separately.
+              </p>
+            </div>
+            <div className="rx-scope-card">
+              <FileText size={30} />
+              <h3>
+                {pricing?.available && pricing.amount
+                  ? "₹" + pricing.amount.toLocaleString("en-IN")
+                  : "Scope and fee confirmation"}
+              </h3>
+              <p>
+                {pricing?.note ||
+                  "Scope and lawful fees are confirmed privately before work proceeds."}
+              </p>
+              <p>
+                Creating a request does not itself establish an advocate–client
+                engagement or issue a notice. No recovery, response or legal
+                outcome is guaranteed.
+              </p>
+              <Link className="rx-text-link" to="/contact">
+                Contact platform support <ArrowRight size={17} />
+              </Link>
+            </div>
+          </div>
+        </section>
+        <section className="rx-container rx-section rx-faq">
+          <div>
+            <p className="rx-eyebrow">Before you begin</p>
+            <h2>
+              A few practical
+              <br />
+              answers.
+            </h2>
+            <p>Know what to prepare and how the process works.</p>
+          </div>
+          <div>
+            {[
+              [
+                "What do I need to start?",
+                "Choose a matter type, add the recipient and explain the facts. Keep relevant agreements, invoices, correspondence and other supporting records ready. Complete the authority-letter process before the matter proceeds.",
+              ],
+              [
+                "Can I save my request and finish later?",
+                "Yes. Requests are saved to your signed-in account. Check the save indicator and use Save and close. You can resume an unfinished request from your dashboard.",
+              ],
+              [
+                "Will AI send a notice automatically?",
+                "No. AI assistance is optional and preliminary. Advocate vetting, checking and necessary corrections/updates are mandatory before approval, signature and issuance.",
+              ],
+              [
+                "How will I know what happens next?",
+                "Open your matter to see the current step, responsible role, document corrections, latest team update and any recorded next-update time. These update times are not legal deadlines.",
+              ],
+              [
+                "Can I use this for an urgent legal deadline?",
+                "Do not rely on the platform to calculate limitation or meet an urgent deadline. Contact an appropriately qualified advocate promptly for urgent or specialised matters.",
+              ],
+            ].map(([q, a]) => (
+              <details key={q}>
+                <summary>{q}</summary>
+                <p>{a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+        <div className="rx-container rx-final">
+          <div>
+            <p className="rx-eyebrow">A more organised way to begin</p>
+            <h2>
+              Bring your next notice
+              <br />
+              into one clear workflow.
+            </h2>
+            <p>Start with the facts. Save your progress. Know the next step.</p>
+          </div>
+          <Link className="rx-button rx-gold" to={start()}>
+            Create a notice request <ArrowRight size={19} />
+          </Link>
+        </div>
+        <div className="rx-container rx-full-policy">
+          <ProfessionalNotice />
+        </div>
       </main>
     </PublicLayout>
   );
