@@ -142,4 +142,18 @@ test('concurrent signup is unique and legacy PHP bcrypt login stays compatible',
  const first=request.agent(app),second=request.agent(app);const body={name:'Concurrent Client',email:'race@example.test',password:'Testing-password-123'};const results=await Promise.all([call(first,'post','/api/auth/client/signup',body),call(second,'post','/api/auth/client/signup',body)]);assert.deepEqual(results.map(r=>r.status).sort(),[200,409]);assert.equal(await require('../server/src/access').Client.countDocuments({email:body.email}),1);
  const hash=(await bcrypt.hash('Testing-password-123',10)).replace(/^\$2b\$/,'$2y$');const u=await require('../server/src/access').Client.create({email:'Legacy@Example.test',name:'Legacy',password:hash,status:'active'});const legacy=request.agent(app);assert.equal((await call(legacy,'post','/api/auth/client/login',{email:'legacy@example.test',password:'Testing-password-123'})).body.success,true);assert.equal((await require('../server/src/access').Client.findById(u.id)).password,hash);
 });
+test('AI proposals remain separate until the assigned advocate reviews the current revision',async()=>{
+ const previous={fetch:global.fetch,enabled:process.env.AI_FEATURES_ENABLED,key:process.env.OPENAI_API_KEY};
+ try{
+  process.env.AI_FEATURES_ENABLED='true';process.env.OPENAI_API_KEY='mock-provider-test-only';let outbound=0;
+  global.fetch=async(url,options)=>{outbound++;assert.equal(url,'https://api.openai.com/v1/responses');assert.match(JSON.parse(options.body).input[1].content[0].text,/Supplied evidence/);return {ok:true,json:async()=>({output_text:'Proposed notice for advocate review.\n\nVerify the agreement and remedy.'})}};
+  const n=await require('../server/src/access').ClientNotice.create({noticeId:'N-AI-REVIEW',clientId:String(clientUser._id),lawyerId:lawyerUser.id,authorityLetter:'reference.pdf',category:'Contract',subject:'Synthetic agreement',caseSummary:'Supplied evidence',generatedNotice:'Existing draft',paymentStatus:'Paid'});
+  const proposal=await call(client,'post','/api/ai/matters/'+n.id+'/draft',{text:'Supplied evidence',consentToAi:true});assert.equal(proposal.status,200,JSON.stringify(proposal.body));assert.equal(outbound,1);const artifact=proposal.body.data.artifact;assert.equal((await require('../server/src/access').ClientNotice.findById(n.id)).generatedNotice,'Existing draft');
+  assert.equal((await other.get('/api/ai/matters/'+n.id+'/artifacts')).status,404);
+  assert.equal((await call(client,'post','/api/ai/artifacts/'+artifact._id+'/apply',{reviewed:true})).status,403);
+  assert.equal((await call(lawyer,'post','/api/ai/artifacts/'+artifact._id+'/apply',{reviewed:false})).status,400);
+  const applied=await call(lawyer,'post','/api/ai/artifacts/'+artifact._id+'/apply',{reviewed:true});assert.equal(applied.status,200,JSON.stringify(applied.body));assert.equal(applied.body.data.draftRevision,1);assert.equal(applied.body.data.status,'pending');assert.match(applied.body.data.generatedNotice,/Proposed notice/);
+  assert.equal((await call(lawyer,'post','/api/ai/artifacts/'+artifact._id+'/apply',{reviewed:true})).status,409);
+ }finally{global.fetch=previous.fetch;for(const [name,value]of[['AI_FEATURES_ENABLED',previous.enabled],['OPENAI_API_KEY',previous.key]]){if(value===undefined)delete process.env[name];else process.env[name]=value}}
+});
 test('logout destroys the session',async()=>{assert.equal((await call(other,'post','/api/logout')).body.success,true);assert.equal((await other.get('/api/client-portal/notices')).status,401)});

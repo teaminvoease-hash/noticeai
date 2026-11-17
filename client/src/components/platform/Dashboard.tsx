@@ -113,7 +113,7 @@ export default function Dashboard({ role }: { role: Role }) {
     role === "admin"
       ? [
           {
-            label: "Active client accounts",
+            label: "Client accounts",
             value: clients?.length,
             icon: Users,
             to: "/admin-users",
