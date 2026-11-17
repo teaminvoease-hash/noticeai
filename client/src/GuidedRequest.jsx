@@ -24,6 +24,8 @@ export default function GuidedRequest() {
     location = useLocation(),
     id = new URLSearchParams(location.search).get("draft"),
     edit = new URLSearchParams(location.search).get("edit");
+  const requestedCategory = new URLSearchParams(location.search).get("category");
+  const selectedCategory = Object.values(noticeCategories).flat().includes(requestedCategory) ? requestedCategory : "";
   const [list, setList] = useState(null),
     [draft, setDraft] = useState(null),
     [form, setForm] = useState(initial),
@@ -280,6 +282,9 @@ export default function GuidedRequest() {
     setError("");
     try {
       const d = await request("/api/intake-drafts", "POST");
+      if (selectedCategory) await request("/api/intake-drafts/" + d._id, "PUT", {
+        revision: d.revision, fields: {...initial, category: selectedCategory}, step: 0
+      });
       navigate("?draft=" + d._id);
     } catch (e) {
       setError(e.message);
@@ -405,6 +410,7 @@ export default function GuidedRequest() {
       {!id ? (
         <section className="form-panel">
           <h2>Start or resume a request</h2>
+          {selectedCategory && <p role="status"><strong>Selected notice type:</strong> {selectedCategory}. A new request will start with this category; existing saved requests stay unchanged.</p>}
           <p>
             A saved request is private to you. It becomes a matter for the team
             after submission.

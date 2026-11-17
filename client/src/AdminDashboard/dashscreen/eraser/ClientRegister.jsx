@@ -1,11 +1,14 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import {safeRequestNext, requestAuthPath} from "../../../lib/requestIntent.mjs";
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { END_POINT, METHODS } from "../../../helper/helper";
 import { fetchData } from "../../../helper/ApiCall";
 import Swal from "sweetalert2";
 
 const RegisterClient = () => {
   const navigate = useNavigate();
+  const next = safeRequestNext(useLocation().search);
+  useEffect(() => { window.scrollTo(0, 0); }, []);
 
   const [name, setName] = useState("");
   const [ownerName, setOwnerName] = useState("");
@@ -69,7 +72,7 @@ const RegisterClient = () => {
           confirmButtonText: "Go to Login",
         }).then((r) => {
           if (r.isConfirmed) {
-            navigate("/client-login");
+            navigate(requestAuthPath("/client-login", next));
           }
         });
       } else {
@@ -99,9 +102,9 @@ const RegisterClient = () => {
 
   return (
     <div className="auth-body">
-      <main className="auth-layout"><aside className="auth-story"><Link className="rx-brand" to="/">Resolve<span>X</span><small>BY CREDEND</small></Link><div><p className="eyebrow">YOUR BUSINESS NOTICE WORKSPACE</p><h2>Every matter.<br/>One clear next step.</h2><p>Keep requests, professional review and supporting documents connected.</p><img src="/assets/reference/dashboard-preview.webp" alt="Notice workspace overview"/><ul><li>Structured notice requests</li><li>Role-based access to your work</li><li>Documents and progress in one place</li></ul></div><nav aria-label="Choose your login"><Link to="/client-login">Client</Link><Link to="/lawyer-login">Lawyer</Link><Link to="/admin-login">Admin</Link></nav></aside>
+      <main className="auth-layout"><aside className="auth-story"><Link className="rx-brand" to="/">Resolve<span>X</span><small>BY CREDEND</small></Link><div><p className="eyebrow">YOUR BUSINESS NOTICE WORKSPACE</p><h2>Every matter.<br/>One clear next step.</h2><p>Keep requests, professional review and supporting documents connected.</p><img src="/assets/reference/dashboard-preview.webp" alt="Notice workspace overview"/><ul><li>Structured notice requests</li><li>Role-based access to your work</li><li>Documents and progress in one place</li></ul></div><nav aria-label="Choose your login"><Link to={requestAuthPath("/client-login", next)}>Client</Link><Link to="/lawyer-login">Lawyer</Link><Link to="/admin-login">Admin</Link></nav></aside>
         <section className="auth-panel">
-          <Link className="back-link" to="/client-login">Back</Link>
+          <Link className="back-link" to={requestAuthPath("/client-login", next)}>Back</Link>
           <p className="auth-tag">Client Portal</p>
           <h1 className="auth-title">Client Sign Up</h1>
           <p className="auth-subtitle">Create your account to submit legal notices and track workflows.</p>
@@ -190,7 +193,7 @@ const RegisterClient = () => {
             <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
               {loading ? "Creating Account..." : "Create Client Account"}
             </button>
-            <p className="switch-text">Already have an account? <Link to="/client-login" className="text-link">Go to Client Login</Link></p>
+            <p className="switch-text">Already have an account? <Link to={requestAuthPath("/client-login", next)} className="text-link">Go to Client Login</Link></p>
           </form>
         </section>
       </main>

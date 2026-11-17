@@ -1,6 +1,7 @@
 import ProfessionalNotice from '../../../components/platform/ProfessionalNotice';
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import {safeRequestNext, requestAuthPath} from "../../../lib/requestIntent.mjs";
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { END_POINT, METHODS } from "../../../helper/helper";
 import { fetchData } from "../../../helper/ApiCall";
 import { useDispatch } from "react-redux";
@@ -9,6 +10,8 @@ import Swal from "sweetalert2";
 
 const ClientLogin = () => {
   const navigate = useNavigate();
+  const next = safeRequestNext(useLocation().search);
+  useEffect(() => { window.scrollTo(0, 0); }, []);
   const dispatch = useDispatch();
 
   const [email, setEmail] = useState("");
@@ -37,7 +40,7 @@ const ClientLogin = () => {
 
       if (result.success === true) {
         dispatch(userdataUpdate(result.data));
-        navigate("/client-dashboard");
+        navigate(next || "/client-dashboard");
       } else {
         Swal.fire({
           title: "Login Failed",
@@ -101,7 +104,7 @@ const ClientLogin = () => {
             <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
               {loading ? "Signing In..." : "Sign In as Client"}
             </button>
-            <p className="switch-text">New client? <Link to="/client-signup" className="text-link">Create Account</Link></p>
+            <p className="switch-text">New client? <Link to={requestAuthPath("/client-signup", next)} className="text-link">Create Account</Link></p>
             <p className="switch-text">Admin access? <Link to="/admin-login" className="text-link">Go to Admin Login</Link></p>
           </form>
         </section>
