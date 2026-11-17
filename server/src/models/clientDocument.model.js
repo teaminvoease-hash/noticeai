@@ -13,6 +13,8 @@ const clientDocumentSchema = new Schema(
     requestedByRole: { type: String, default: "client" },
     requestedById: { type: String, default: "" },
     responseFiles: { type: [String], default: [] },
+    revision:{type:Number,default:0}, reviewNote:String, reviewedAt:Date, reviewedBy:String,
+    responseHistory:[{files:[String],uploadedAt:Date,actorId:String}],
     status: { type: String, default: "Requested" },
   },
   { timestamps: true }

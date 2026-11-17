@@ -2,10 +2,10 @@ import React,{useEffect,useState} from 'react';
 import {Link} from 'react-router-dom';
 import {fetchData,FileUpload} from './helper/ApiCall';
 const labels={missing:'Signed letter needed',pending:'Awaiting admin review',approved:'Approved',changes_required:'Corrections requested'};
-export function AuthorityPanel({clientId,admin=false,compact=false}){
- const [data,setData]=useState(null),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[feedback,setFeedback]=useState('');
+export function AuthorityPanel({clientId,admin=false,compact=false,initialData=null}){
+ const [data,setData]=useState(initialData),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[feedback,setFeedback]=useState('');
  async function load(){try{const r=await fetchData('/api/authority/'+clientId);if(!r.success)throw Error(r.message);setData(r.data);setMessage('')}catch(e){setMessage(e.message)}}
- useEffect(()=>{setData(null);if(clientId)load()},[clientId]);
+ useEffect(()=>{setData(initialData);if(clientId)load()},[clientId]);
  async function act(body){setBusy(true);setMessage('');try{const r=await fetchData('/api/authority/'+clientId,'POST',body);if(!r.success)throw Error(r.message);setData(r.data);setMessage(r.message)}catch(e){setMessage(e.message)}finally{setBusy(false)}}
  async function upload(e,action){const file=e.target.files?.[0];if(!file)return;setBusy(true);setMessage('');try{const r=await FileUpload(file);if(!r.success)throw Error(r.message);await act({action,[action==='template'?'authorityTemplate':'authorityLetter']:r.fileName})}catch(e){setMessage(e.message)}finally{setBusy(false);e.target.value=''}}
  const status=data?.authorityLetter?(data.authorityStatus==='missing'?'pending':data.authorityStatus||'pending'):'missing';
