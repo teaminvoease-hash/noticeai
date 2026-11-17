@@ -1,3 +1,5 @@
+> Development modernization: see [audit and release gates](docs/MODERNIZATION-AUDIT.md) and [isolated staging / rollback](docs/STAGING-AND-ROLLBACK.md). Do not merge or deploy to production before these gates are completed.
+
 # Notice AI / ResolveX — complete React + Node platform
 
 Restores the Admin, Client and Lawyer portals from `ai.zip`, including the React component source recovered from the supplied build source maps and the existing MongoDB models. Replaces the previous standalone React demo with a single same-origin application: React frontend, Express API, MongoDB persistence, server sessions and private document storage.
