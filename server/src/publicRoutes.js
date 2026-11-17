@@ -30,6 +30,14 @@ router.get("/public/runtime", (_req, res) =>
 router.get(
   "/public/pricing",
   wrap(async (req, res) => {
+    if (process.env.PUBLIC_PRICE_DISPLAY_APPROVED !== "true")
+      return res.json({
+        success: true,
+        data: {
+          available: false,
+          note: "Scope and lawful fees are confirmed privately under a separate engagement.",
+        },
+      });
     const p = await require("./models/adminPayment.model")
       .AdminPayment.findOne({
         paymentScope: "global",

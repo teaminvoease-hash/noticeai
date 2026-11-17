@@ -659,25 +659,19 @@ const sendNoticeEmailToDefaulter = async (req, res) => {
       });
     }
 
-    const defaulter = await ClientDefaulter.findById(notice.defaulterId).select("name email companyName");
-    if (!defaulter || !String(defaulter.email || "").trim()) {
-      return res.status(200).json({
-        success: false,
-        message: "Defaulter email not found for this notice",
-      });
-    }
-
+    const destination=require('../services/professionalReview').emailDestination(notice);
+    const defaulter = require('mongoose').isValidObjectId(notice.defaulterId)?await ClientDefaulter.findById(notice.defaulterId).select("name email companyName"):null;
     const lawyer = await Lawyer.findById(lawyerId).select("name advocate_id");
     const client = await Client.findById(notice.clientId).select("name email owner_name ownerName");
     const clientName = client?.name || client?.owner_name || client?.ownerName || "Client";
     const lawyerName = lawyer?.name || "Assigned Lawyer";
-    const defaulterName = defaulter?.name || notice.defaulterName || "Defaulter";
+    const defaulterName = defaulter?.name || notice.defaulterName || "Recipient";
     const emailSubject = `Legal Notice - ${notice.noticeId || "Notice"}`;
-    const noticeBody = stripHtmlToText(notice.generatedNotice || "");
+    const salutation=notice.professionalReview.serviceRoute.mode==='through_counsel'?'Counsel':defaulterName;
     const emailContent = `
-Dear ${defaulterName},
+Dear ${salutation},
 
-Please find below the legal notice issued in relation to this matter.
+Please find attached the advocate-provided signed notice for this matter.
 
 Notice ID: ${notice.noticeId || "-"}
 Subject: ${notice.subject || "-"}
@@ -685,14 +679,14 @@ Category: ${notice.category || "-"}
 Issued on behalf of: ${clientName}
 Assigned Lawyer: ${lawyerName}${lawyer?.advocate_id ? ` (${lawyer.advocate_id})` : ""}
 
-${noticeBody}
+The attached signed document is the operative copy. No preliminary draft is issued by this message.
 
 Regards,
 ${lawyerName}
 Legal Notice Platform
     `.trim();
 
-    await EmailSendHnaldre(String(defaulter.email).trim(), emailSubject, emailContent, [await require('../storage').attachment(notice.signedFile,notice.noticeId+'-signed.pdf')]);
+    await EmailSendHnaldre(destination, emailSubject, emailContent, [await require('../storage').attachment(notice.signedFile,notice.noticeId+'-signed.pdf')]);
     await ClientNotification.create({clientId:notice.clientId,notificationId:buildId('NTF'),channel:'Portal',noticeId:notice.noticeId,message:'Assigned lawyer dispatched the signed notice by email.'});
     await sendNoticeDispatchNotifications({
       lawyer,
@@ -705,11 +699,13 @@ Legal Notice Platform
       success: true,
       message: "Notice email sent successfully",
       data: {
-        defaulterEmail: String(defaulter.email).trim(),
+        defaulterEmail: destination,
+        recipientEmail: destination,
+        communicationRoute: notice.professionalReview.serviceRoute.mode,
       },
     });
   } catch (err) {
-    return res.status(400).json({ success: false, message: "Error: " + err.message });
+    return res.status(err.status||400).json({ success: false, message: err.status?err.message:"Unable to send the notice. Check the configured service and approved communication route." });
   }
 };
 

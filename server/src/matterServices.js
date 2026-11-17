@@ -314,6 +314,16 @@ async function reviewNotice(req, res) {
     !String(n.generatedNotice || "").trim()
   )
     a.fail(409, "Save and review a notice draft before approval.");
+  let professionalReview;
+  if (["approved", "verified"].includes(status)) {
+    professionalReview = require("./services/professionalReview").attestation(
+      req,
+      n,
+    );
+    await require("./services/professionalReview").requireCredentials(
+      req.session.user.id,
+    );
+  }
   let data;
   await mongoose.connection.transaction(async (session) => {
     const docs = await a.ClientDocument.find({ noticeId: n.noticeId }).session(
@@ -338,11 +348,30 @@ async function reviewNotice(req, res) {
           $eq: [{ $ifNull: ["$draftRevision", 0] }, n.draftRevision || 0],
         },
       },
-      { $set: { status } },
+      {
+        $set: { status, ...(professionalReview ? { professionalReview } : {}) },
+      },
       { new: true, session },
     );
     if (!data) a.fail(409, "The matter changed. Refresh before reviewing.");
-    await event(req, n, "Professional review status updated", status, session);
+    if (professionalReview)
+      await require("./models/matterWork.model").ProfessionalReview.create(
+        [{ noticeId: n.noticeId, ...professionalReview }],
+        { session },
+      );
+    await event(
+      req,
+      n,
+      professionalReview
+        ? "Mandatory advocate vetting and updates recorded"
+        : "Professional review status updated",
+      professionalReview
+        ? "Saved draft revision " +
+            professionalReview.revision +
+            " checked and approved by the assigned advocate."
+        : status,
+      session,
+    );
   });
   res.json({ success: true, data });
 }
@@ -364,6 +393,7 @@ async function signNotice(req, res) {
     );
   if (!req.body.signedFile?.endsWith(".pdf"))
     a.fail(400, "A signed PDF is required");
+  await require("./services/professionalReview").requireVetting(n);
   let data;
   await mongoose.connection.transaction(async (session) => {
     const documents = await a.ClientDocument.find({

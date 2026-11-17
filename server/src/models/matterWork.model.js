@@ -43,6 +43,24 @@ const versionSchema = new Schema(
 );
 versionSchema.index({ noticeId: 1, revision: 1 }, { unique: true });
 module.exports = {
+  ProfessionalReview: mongoose.model(
+    "professional_reviews",
+    new Schema(
+      {
+        noticeId: { type: String, index: true, required: true },
+        serviceRoute: { mode: String, email: String, basis: String },
+        policyVersion: String,
+        lawyerId: String,
+        revision: Number,
+        contentHash: String,
+        checklist: Schema.Types.Mixed,
+        note: String,
+        updates: String,
+        reviewedAt: Date,
+      },
+      { timestamps: true },
+    ),
+  ),
   IntakeDraft: mongoose.model("intake_drafts", intakeSchema),
   MatterEvent: mongoose.model("matter_events", eventSchema),
   DraftVersion: mongoose.model("notice_draft_versions", versionSchema),

@@ -315,11 +315,12 @@ router.get(
             }).lean()
           : Promise.resolve(null),
       ]);
+    const assignedAdvocate=n.lawyerId&&mongoose.isValidObjectId(n.lawyerId)?await a.Lawyer.findById(n.lawyerId).select('status credentialReview'):null;
     res.json({
       success: true,
       data: {
         notice: n,
-        capabilities:{paymentGateway:!!process.env.PAYU_KEY&&!!process.env.PAYU_SALT,emailDelivery:!!process.env.SMTP_HOST&&!!process.env.SMTP_FROM&&(process.env.APP_ENV!=='staging'||process.env.STAGING_ALLOW_EXTERNAL_DELIVERY==='true')},
+        capabilities:{paymentGateway:require("./config/commercialReview").commercialReady()&&!!process.env.PAYU_KEY&&!!process.env.PAYU_SALT,emailDelivery:!!process.env.SMTP_HOST&&!!process.env.SMTP_FROM&&(process.env.APP_ENV!=='staging'||process.env.STAGING_ALLOW_EXTERNAL_DELIVERY==='true')},
         client,
         recipient,
         documents: documents.map((d) => ({
@@ -329,7 +330,7 @@ router.get(
         events,
         versions,
         payments,
-        workflow: require("./workflow").workflow(n, client, documents),
+        workflow: require("./workflow").workflow(n, client, documents, assignedAdvocate),
       },
     });
   }),

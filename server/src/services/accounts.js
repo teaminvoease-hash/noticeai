@@ -48,7 +48,8 @@ async function saveAccount(Model, role, id, input) {
           { session },
         );
       }
-      if (current) {
+      if(current&&role==='lawyer'&&['enrollmentNo','barId'].some(k=>patch[k]!==undefined&&patch[k]!==current[k]))patch.credentialReview={status:'withdrawn'};
+    if (current) {
         data = await Model.findOneAndUpdate(
           { _id: accountId, updatedAt: current.updatedAt },
           { $set: patch },

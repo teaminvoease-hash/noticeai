@@ -2,6 +2,8 @@ name: resolvex-staging
 services:
   mongo:
     image: mongo:7
+    ulimits:
+      nofile: {soft: 16384, hard: 16384}
     ports: ["127.0.0.1:27120:27017"]
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     volumes: ["staging_mongo:/data/db"]

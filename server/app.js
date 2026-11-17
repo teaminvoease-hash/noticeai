@@ -13,6 +13,7 @@ function createApp({sessionStore}={}){
  app.use('/api',(req,res,next)=>{const inspect=o=>{if(!o||typeof o!=='object')return;for(const [k,v]of Object.entries(o)){if(k.startsWith('$')||k.includes('.'))fail(400,'Invalid input');inspect(v)}};try{inspect(req.body);inspect(req.query);next()}catch(e){next(e)}});
  app.use('/api',(req,res,next)=>{if(!req.path.startsWith('/auth/')&&req.body.password!==undefined&&req.body.password!==''){if(typeof req.body.password!=='string'||req.body.password.length<10||req.body.password.length>128)return res.status(400).json({success:false,message:'Use a password of 10 to 128 characters.'})}next()});
  app.use('/api',auth);
+ app.use('/api',require('./src/config/commercialReview').requireCommercialReview);
  app.use('/api',wrap(async(req,res,next)=>{if(req.session.user){const u=await models[req.session.user.role]?.findById(req.session.user.id);if(!u||(u.status&&!['active','verified','onboard'].includes(u.status)))fail(401,'Please sign in again')}next()}));
  // Never expose password hashes via legacy administration responses.
  app.use('/api',(req,res,next)=>{const json=res.json.bind(res);res.json=data=>json(JSON.parse(JSON.stringify(data,(key,value)=>key==='password'?undefined:value)));next()});
@@ -32,6 +33,7 @@ function createApp({sessionStore}={}){
  app.use('/api',require('./src/publicRoutes'));
  app.use('/api',require('./src/aiRoutes'));
  app.use('/api',require('./src/casework'));
+ app.use('/api',require('./src/professionalRoutes'));
  app.use('/api/authority',require('./src/authority'));
  app.use('/api/client-portal',require('./src/portal'));app.use('/api/payu',require('./src/payments').router);app.use('/api',require('./src/wallet').router);
  const mount=(name,spec)=>{const c=require('./src/controller/'+name+'.controller');for(const [method,url,handler]of spec)app[method]('/api/'+url,allow('admin'),wrap(c[handler]))};
