@@ -1,14 +1,17 @@
+const PlatformDashboard=lazy(()=>import('./components/platform/Dashboard'));
+const ContactPage=lazy(()=>import('./PublicPages').then(m=>({default:m.ContactPage})));const LegalPage=lazy(()=>import('./PublicPages').then(m=>({default:m.LegalPage})));const EnquiriesPage=lazy(()=>import('./PublicPages').then(m=>({default:m.EnquiriesPage})));
 import {Downloads,Delivery,Notifications,Wallet,SignedUploads,PaymentResult,Operations,Integrations,AdminDocuments} from './LiveScreens';
 import React,{lazy,Suspense} from 'react';
 import {BrowserRouter,Routes,Route,Navigate} from 'react-router-dom';
 import {useSelector} from 'react-redux';
-import Home from './Home';
-import MatterPage from './MatterPage';
+const Home=lazy(()=>import('./Home'));
+const MatterPage=lazy(()=>import('./MatterPage'));
 import './matters.css';
 import './portal.css';
 import './enhancements.css';
 import './upgrade.css';
-const AdminDashboard=lazy(()=>import('./AdminDashboard/dashscreen/eraser/AdminDashboard'));
+import './modern.css';
+const AdminDashboard=()=> <PlatformDashboard role='admin'/>;
 const AdminUsersPage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/AdminUsersPage'));
 const AdminUsersCreatePage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/AdminUsersCreatePage'));
 const AdminAdvocatesPage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/AdminAdvocatesPage'));
@@ -22,7 +25,7 @@ const AdminWithdrawalsCreatePage=lazy(()=>import('./AdminDashboard/dashscreen/er
 const AdminDocumentsCreatePage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/AdminDocumentsCreatePage'));
 const AdminTemplatesPage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/AdminTemplatesPage'));
 const AdminTemplatesCreatePage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/AdminTemplatesCreatePage'));
-const ClientDashboard=lazy(()=>import('./AdminDashboard/dashscreen/eraser/ClientDashboard'));
+const ClientDashboard=()=> <PlatformDashboard role='client'/>;
 const ClientNoticeSubmission=lazy(()=>import('./GuidedRequest'));
 const ClientDefaultersPage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/ClientDefaultersPage'));
 const ClientDefaultersCreatePage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/ClientDefaultersCreatePage'));
@@ -30,7 +33,7 @@ const ClientMyNotices=lazy(()=>import('./AdminDashboard/dashscreen/eraser/Client
 const ClientDocuments=lazy(()=>import('./AdminDashboard/dashscreen/eraser/ClientDocuments'));
 const ClientPayments=lazy(()=>import('./AdminDashboard/dashscreen/eraser/ClientPayments'));
 const ClientProfilePage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/ClientProfilePage'));
-const LawyerDashboard=lazy(()=>import('./AdminDashboard/dashscreen/eraser/LawyerDashboard'));
+const LawyerDashboard=()=> <PlatformDashboard role='lawyer'/>;
 const LawyerAssignedNoticesPage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/LawyerAssignedNoticesPage'));
 const LawyerDocumentRequestsPage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/LawyerDocumentRequestsPage'));
 const LawyerDocumentRequestsDisplayPage=lazy(()=>import('./AdminDashboard/dashscreen/eraser/LawyerDocumentRequestsDisplayPage'));
@@ -43,7 +46,7 @@ const LawyerLogin=lazy(()=>import('./AdminDashboard/dashscreen/eraser/LawyerLogi
 const LawyerRegister=lazy(()=>import('./AdminDashboard/dashscreen/eraser/LawyerRegister'));
 function MatterRoute(){const user=useSelector(s=>s.userReducer.userData);return ['client','admin','lawyer'].includes(user?.role)?<MatterPage/>:<Navigate to='/client-login' replace/>}
 function Protected({role,children}){const user=useSelector(s=>s.userReducer.userData);return user?.role===role?children:<Navigate to={'/'+role+'-login'} replace/>}
-export default function App(){return <BrowserRouter><Suspense fallback={<main className="auth-panel">Loading portal…</main>}><Routes><Route path="/matters/:id" element={<MatterRoute/>}/><Route path="/admin-operations" element={<Protected role="admin"><Operations/></Protected>}/><Route path="/" element={<Home/>}/>
+export default function App(){return <BrowserRouter><Suspense fallback={<main className="auth-panel">Loading portal…</main>}><Routes><Route path="/register.php" element={<Navigate to="/client-signup" replace/>}/><Route path="/login.php" element={<Navigate to="/client-login" replace/>}/><Route path="/index.php" element={<Navigate to="/" replace/>}/><Route path="/contact.php" element={<Navigate to="/contact" replace/>}/><Route path="/compliance.php" element={<Navigate to="/compliance" replace/>}/><Route path="/refund.php" element={<Navigate to="/refund" replace/>}/><Route path="/terms.php" element={<Navigate to="/terms" replace/>}/><Route path="/privacy.php" element={<Navigate to="/privacy" replace/>}/><Route path="/contact" element={<ContactPage/>}/><Route path="/:policy" element={<LegalPage/>}/><Route path="/admin-enquiries" element={<Protected role="admin"><EnquiriesPage/></Protected>}/><Route path="/matters/:id" element={<MatterRoute/>}/><Route path="/admin-operations" element={<Protected role="admin"><Operations/></Protected>}/><Route path="/" element={<Home/>}/>
 <Route path="/admin-dashboard" element={<Protected role="admin"><AdminDashboard/></Protected>}/>
 <Route path="/admin-users" element={<Protected role="admin"><AdminUsersPage/></Protected>}/>
 <Route path="/admin-users-create" element={<Protected role="admin"><AdminUsersCreatePage/></Protected>}/>

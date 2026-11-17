@@ -1,3 +1,4 @@
+import noticeCategories from './data/categories.json';
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import ClientLayout from "./AdminDashboard/dashscreen/eraser/ClientPortalLayout";
@@ -522,7 +523,7 @@ export default function GuidedRequest() {
                       }
                       onChange={(e) => change("category", e.target.value)}
                     >
-                      <option value="">Choose a matter type</option>
+                      <option value="">Choose a matter type</option>{Object.entries(noticeCategories).map(([group,items])=><optgroup key={group} label={group}>{items.map(item=><option key={item} value={item}>{item}</option>)}</optgroup>)}
                       {[
                         ["Financial", "Payments, invoices or refunds"],
                         ["Contract", "Contracts, vendors or services"],

@@ -1,3 +1,4 @@
+const AiWorkspace=lazy(()=>import('./components/platform/AiWorkspace'));
 import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -632,7 +633,8 @@ export default function MatterPage() {
               </article>
             ))}
           </section>
-          <section
+    <Suspense fallback={<p role="status">Loading document intelligence tools…</p>}><AiWorkspace matterId={id} role={role} revision={n.draftRevision||0} paymentStatus={n.paymentStatus} signedFile={n.signedFile} files={[n.supportingDocument,...(n.supportingDocuments||[]),...data.documents.flatMap(d=>[d.fileName,...(d.responseFiles||[])])].filter(Boolean)} caseSummary={n.caseSummary} hasDraft={!!n.generatedNotice?.trim()} onApplied={load} onAdoptFacts={isClient&&n.paymentStatus!=='Paid'&&!n.lawyerId?(text)=>{setFacts({subject:n.subject,caseSummary:text});setEditFacts(true);document.getElementById('facts')?.scrollIntoView({block:'start'});}:undefined}/></Suspense>
+      <section
             className="form-panel matter-section"
             id="assignment"
             tabIndex={-1}
@@ -932,15 +934,15 @@ export default function MatterPage() {
                 <p>
                   Authority approval and configured pricing are required before
                   the gateway can open. No payment is taken when you submit a
-                  notice request.
+                  notice request. If online payment is unavailable, contact the administrator for a reconciled payment option.
                 </p>
                 <button
                   type="button"
                   className="btn btn-primary"
-                  disabled={busy}
+                  disabled={busy || !data.capabilities?.paymentGateway}
                   onClick={pay}
                 >
-                  Continue to configured payment gateway
+                  {data.capabilities?.paymentGateway?'Continue to payment gateway':'Online payments unavailable'}
                 </button>
               </>
             )}
