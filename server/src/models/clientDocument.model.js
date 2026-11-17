@@ -20,5 +20,6 @@ const clientDocumentSchema = new Schema(
   { timestamps: true }
 );
 
+clientDocumentSchema.index({noticeId:1,createdAt:-1});
 const ClientDocument = mongoose.model("client_documents", clientDocumentSchema);
 module.exports = { ClientDocument };

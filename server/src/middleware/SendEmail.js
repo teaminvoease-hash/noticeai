@@ -1,5 +1,6 @@
 const nodemailer=require('nodemailer');
 const transport=()=>{
+ if(process.env.APP_ENV==='staging'&&process.env.STAGING_ALLOW_EXTERNAL_DELIVERY!=='true')throw Object.assign(new Error('Outbound email is disabled in staging'),{status:503});
  if(!process.env.SMTP_HOST||!process.env.SMTP_FROM) throw Object.assign(new Error('Email service is not configured'),{status:503});
  return nodemailer.createTransport({host:process.env.SMTP_HOST,port:Number(process.env.SMTP_PORT||587),secure:process.env.SMTP_PORT==='465',auth:process.env.SMTP_USER?{user:process.env.SMTP_USER,pass:process.env.SMTP_PASS}:undefined});
 };

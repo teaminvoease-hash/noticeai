@@ -51,4 +51,9 @@ async function attachment(name, filename) {
   }
   return { filename, path: path.join(directory(), name) };
 }
-module.exports = { save, remove, download, attachment };
+async function read(name,limit=10*1024*1024){
+ validateName(name);
+ if(!useGridFS()){const target=path.join(directory(),name),stat=await fs.stat(target);if(!stat.isFile()||stat.size>limit)throw Object.assign(new Error('Document is too large to process'),{status:413});return fs.readFile(target)}
+ const file=await bucket().find({filename:name}).next();if(!file)throw Object.assign(new Error('Document not found'),{status:404});if(file.length>limit)throw Object.assign(new Error('Document is too large to process'),{status:413});let size=0;const parts=[];for await(const part of bucket().openDownloadStream(file._id)){size+=part.length;if(size>limit)throw Object.assign(new Error('Document is too large to process'),{status:413});parts.push(part)}return Buffer.concat(parts);
+}
+module.exports = { save, remove, download, attachment, read };

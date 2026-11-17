@@ -1,4 +1,4 @@
-const axios = require("axios");
+
 const { Client } = require("../models/client.model");
 const { ClientNotice } = require("../models/clientNotice.model");
 const { ClientDocument } = require("../models/clientDocument.model");
@@ -28,25 +28,7 @@ const generateClientNoticeId = async () => {
   throw new Error("All 4 digit notice IDs are already used");
 };
 
-const getOpenAIText = (data) => {
-  if (typeof data?.output_text === "string" && data.output_text.trim()) {
-    return data.output_text.trim();
-  }
 
-  const output = Array.isArray(data?.output) ? data.output : [];
-  const parts = [];
-
-  output.forEach((item) => {
-    const content = Array.isArray(item?.content) ? item.content : [];
-    content.forEach((entry) => {
-      if (typeof entry?.text === "string" && entry.text.trim()) {
-        parts.push(entry.text.trim());
-      }
-    });
-  });
-
-  return parts.join("\n\n").trim();
-};
 
 const stripHtmlToText = (value) => {
   const text = String(value || "").trim();
@@ -67,44 +49,7 @@ const stripHtmlToText = (value) => {
     .trim();
 };
 
-const buildNoticePrompt = ({ client, defaulter, subject, category, recipientDetails, caseSummary }) => {
-  return `
-Generate a formal Indian legal notice in plain text.
 
-Requirements:
-- Output only the notice body in professional legal language.
-- Do not use markdown fences.
-- Include notice heading, date line placeholder, sender details, recipient details, factual background, legal demand, time period for compliance, and closing.
-- Use the category to shape the legal framing.
-- Keep the notice detailed and ready for advocate review.
-
-Notice Category: ${category || "General"}
-Subject: ${subject || ""}
-
-Client Details:
-- Name: ${client?.name || ""}
-- Email: ${client?.email || ""}
-- Phone: ${client?.phone || ""}
-- Address: ${client?.address || ""}
-- Company: ${client?.company || ""}
-- Owner Name: ${client?.owner_name || client?.ownerName || ""}
-
-Recipient Details Entered By Client:
-${recipientDetails || ""}
-
-Defaulter Details:
-- Name: ${defaulter?.name || ""}
-- Email: ${defaulter?.email || ""}
-- Phone: ${defaulter?.phone || ""}
-- Company Name: ${defaulter?.companyName || ""}
-- Address: ${defaulter?.address || ""}
-- Total Due Amount: ${defaulter?.totalDueAmount || 0}
-- Last Invoice Date: ${defaulter?.lastInvoiceDate || ""}
-
-Case Summary:
-${caseSummary || ""}
-  `.trim();
-};
 
 const buildFallbackNotice = ({ client, defaulter, subject, category, recipientDetails, caseSummary }) => {
   const today = new Date().toLocaleDateString("en-IN", {
@@ -142,14 +87,14 @@ Under instructions from and on behalf of my client ${client?.name || "the client
    Phone: ${defaulter?.phone || "-"}
    Email: ${defaulter?.email || "-"}
 
-3. As per the records provided by my client, an amount of Rs. ${Number(defaulter?.totalDueAmount || 0).toLocaleString("en-IN")} is outstanding. The last invoice/date of transaction available with my client is ${defaulter?.lastInvoiceDate || "-"}.
+3. As per the records provided by my client, the financial particulars, if applicable, require verification against the supporting records. Recorded amount: ${defaulter?.totalDueAmount ? "Rs. "+Number(defaulter.totalDueAmount).toLocaleString("en-IN") : "Not supplied"}. Recorded transaction date: ${defaulter?.lastInvoiceDate || "Not supplied"}.
 
 4. The material facts, as provided by my client, are stated below:
 ${caseSummary || "The client has reported a dispute and seeks immediate resolution in accordance with law."}
 
-5. My client calls upon you to immediately comply with your legal and contractual obligations, clear the outstanding dues, and resolve the matter within 15 days from the date of receipt of this notice.
+5. My client calls upon you to immediately comply with your legal and contractual obligations, address the documented matter. [Advocate: specify the precise relief, any substantiated amount and a legally appropriate response deadline after checking the facts and applicable law.]
 
-6. In the event of failure to comply within the above period, my client shall be constrained to initiate appropriate civil and/or criminal proceedings against you before the competent authority, entirely at your risk as to costs and consequences.
+6. In the event of failure to comply within the above period, [Advocate: identify appropriate remedies and the competent forum only after reviewing the evidence, jurisdiction and applicable law. Do not infer criminal liability from a contractual dispute.]
 
 7. You are further called upon to preserve all relevant records, communications, invoices, agreements, and supporting materials relating to this matter.
 
@@ -161,71 +106,7 @@ ${client?.name || "Client Name"}
   `.trim();
 };
 
-const generateNoticeWithFallback = async (payload) => {
-  try {
-    return await generateAINoticeDraft(payload);
-  } catch (err) {
-    return 'PRELIMINARY TEMPLATE — NOT AI-GENERATED. INDEPENDENT ADVOCATE REVIEW REQUIRED.\n\n'+buildFallbackNotice(payload);
-  }
-};
-
-const generateAINoticeDraft = async (payload) => {
-  const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not configured on server");
-  }
-
-  let response;
-  try {
-    response = await axios.post(
-      "https://api.openai.com/v1/responses",
-      {
-        model: "gpt-4.1-mini",
-        input: [
-          {
-            role: "system",
-            content: [
-              {
-                type: "input_text",
-                text: "You draft formal Indian legal notices for advocate review. Produce plain text only.",
-              },
-            ],
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: buildNoticePrompt(payload),
-              },
-            ],
-          },
-        ],
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        timeout: 60000,
-      }
-    );
-  } catch (err) {
-    console.error("OpenAI notice generation failed");
-    console.error("OpenAI status:", err.response?.status || "no-status");
-    console.error("OpenAI status text:", err.response?.statusText || "no-status-text");
-    console.error("OpenAI response body:", JSON.stringify(err.response?.data || {}, null, 2));
-    console.error("OpenAI error message:", err.message);
-    throw err;
-  }
-
-  const generatedNotice = require('sanitize-html')(getOpenAIText(response.data));
-  if (!generatedNotice) {
-    throw new Error("AI notice generation returned empty content");
-  }
-
-  return generatedNotice;
-};
+const generateNoticeWithFallback = async (payload) => 'PRELIMINARY TEMPLATE — NOT AI-GENERATED. INDEPENDENT ADVOCATE REVIEW REQUIRED.\n\n'+buildFallbackNotice(payload);
 
 const generateDefaulterId = async () => {
   let nextId = "";

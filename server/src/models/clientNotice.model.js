@@ -29,5 +29,6 @@ const clientNoticeSchema = new Schema(
   { timestamps: true }
 );
 
+clientNoticeSchema.index({clientId:1,createdAt:-1});clientNoticeSchema.index({lawyerId:1,createdAt:-1});
 const ClientNotice = mongoose.model("client_notices", clientNoticeSchema);
 module.exports = { ClientNotice };

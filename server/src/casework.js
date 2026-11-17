@@ -319,6 +319,7 @@ router.get(
       success: true,
       data: {
         notice: n,
+        capabilities:{paymentGateway:!!process.env.PAYU_KEY&&!!process.env.PAYU_SALT,emailDelivery:!!process.env.SMTP_HOST&&!!process.env.SMTP_FROM&&(process.env.APP_ENV!=='staging'||process.env.STAGING_ALLOW_EXTERNAL_DELIVERY==='true')},
         client,
         recipient,
         documents: documents.map((d) => ({

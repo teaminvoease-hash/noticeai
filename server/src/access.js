@@ -21,7 +21,6 @@ async function fileAccess(req,name){
  if(await ClientDocument.exists({noticeId:{$in:codes},$or:[{fileName:name},{responseFiles:name},{"responseHistory.files":name}]}))return true;
  if(await ClientDefaulter.exists({clientId:{$in:user.role==='client'?[user.id]:clients},agreementFile:name}))return true;
  if(await Client.exists({_id:{$in:user.role==='client'?[user.id]:clients},$or:[{authorityLetter:name},{authorityTemplate:name}]}))return true;
- if(user.role==='client'&&await Lawyer.exists({_id:{$in:notices.map(n=>n.lawyerId).filter(Boolean)},signatureImage:name}))return true;
  return false;
 }
 async function checkFiles(req){

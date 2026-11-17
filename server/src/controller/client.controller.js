@@ -38,10 +38,10 @@ const GetClient = async (req, res, next) => {
         res.status(400).json("Error: " + err);
     }
 };
-// Delete 
+// Delete
 const DeleteClient = async (req, res, next) => {
     try {
-        var Data = await Client.findOneAndDelete({ _id: req.params.id });
+        var Data = await Client.findOneAndUpdate({ _id: req.params.id },{$set:{status:"inactive"}},{new:true});
 
         res.status(200).json({
             success: true,

@@ -1,0 +1,1 @@
+const mongoose=require('mongoose');const schema=new mongoose.Schema({role:{type:String,required:true},email:{type:String,required:true},accountId:String},{timestamps:true});schema.index({role:1,email:1},{unique:true});module.exports=mongoose.model('account_identities',schema);

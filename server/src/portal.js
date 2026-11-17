@@ -28,7 +28,7 @@ router.use((req,res,next)=>{
 });
 const run=name=>wrap(C[name]);
 router.get('/workflow',wrap(async(req,res)=>{
- const u=req.session.user;const notices=await a.ClientNotice.find(u.role==='client'?{clientId:u.id}:u.role==='lawyer'?{lawyerId:u.id}:{}).sort({createdAt:-1}).lean();
+ const u=req.session.user;const notices=await a.ClientNotice.find(u.role==='client'?{clientId:u.id}:u.role==='lawyer'?{lawyerId:u.id}:{}).select('_id noticeId clientId subject category paymentStatus status lawyerId lawyerName signedFile trackingId deliveryStatus createdAt updatedAt draftRevision').sort({createdAt:-1}).lean();
  const clients=await a.Client.find({_id:{$in:[...new Set(notices.map(n=>n.clientId))]}}).select('name authorityLetter authorityStatus').lean();
  const documents=await a.ClientDocument.find({noticeId:{$in:notices.map(n=>n.noticeId)}}).lean();
  const map=new Map(clients.map(c=>[String(c._id),c]));
@@ -51,7 +51,7 @@ router.put('/documents/:id',wrap(async(req,res)=>{
  return require('./matterServices').reviewDocument(req,res);
 }));
 router.get('/payments',allow('admin','client'),run('getPayments'));
-router.post('/payments',allow('client'),wrap(async(req,res,next)=>{const n=await noticeAccess(req,req.body.noticeId,true);if(n.paymentStatus==='Paid')fail(409,'This notice has already been paid');await require('./authority').requireAuthority(n.clientId);if(req.body.method==='PayU')fail(400,'Use the PayU gateway to initiate this payment');if(!Number.isFinite(Number(req.body.amount))||Number(req.body.amount)<=0)fail(400,'Invalid payment amount');next()}),run('createPayment'));
+router.post('/payments',allow('client'),wrap(async(req,res,next)=>{const n=await noticeAccess(req,req.body.noticeId,true);if(n.paymentStatus==='Paid')fail(409,'This notice has already been paid');await require('./authority').requireAuthority(n.clientId);if(req.body.method==='PayU')fail(400,'Use the PayU gateway to initiate this payment');const amount=await require('./services/pricing').priceFor(n.clientId);if(Number(req.body.amount)!==amount)fail(400,'The amount must match the administrator-configured service price.');req.body.amount=amount;next()}),run('createPayment'));
 router.get('/delivery-tracking',allow('admin','client'),run('getDeliveryTracking'));
 router.get('/downloads',allow('admin','client'),run('getDownloads'));
 router.get('/notifications',allow('admin','client'),run('getNotifications'));
