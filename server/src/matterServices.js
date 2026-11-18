@@ -1,5 +1,5 @@
 const mongoose = require("mongoose"),
-  sanitize = require("sanitize-html");
+  sanitize = require("./services/sanitize");
 const a = require("./access");
 const { MatterEvent, DraftVersion } = require("./models/matterWork.model");
 const docState = (d) =>

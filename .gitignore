@@ -14,3 +14,5 @@ data/
 !client/src/data/
 !client/src/data/categories.json
 !client/src/data/policies.json
+
+/server/generated/

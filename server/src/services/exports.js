@@ -9,7 +9,7 @@ const {
   PageNumber,
   AlignmentType,
 } = require("docx");
-const sanitize = require("sanitize-html");
+const sanitize = require("./sanitize");
 function plain(html) {
   return sanitize(
     String(html || "")

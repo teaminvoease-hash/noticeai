@@ -1,4 +1,4 @@
-const express=require('express'),sanitize=require('sanitize-html');
+const express=require('express'),sanitize=require('./services/sanitize');
 const a=require('./access');const {wrap,allow,fail,noticeAccess}=a;
 const C=require('./controller/clientPortal.controller');
 const router=express.Router();router.use(allow('admin','client','lawyer'));

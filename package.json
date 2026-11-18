@@ -3,7 +3,7 @@
   "version": "3.0.0",
   "private": true,
   "engines": {
-    "node": ">=22.12"
+    "node": "24.x"
   },
   "scripts": {
     "start": "node server/index.js",
@@ -16,7 +16,8 @@
     "dev:staging": "ENV_FILE=.env.staging concurrently -k \"node --watch server/index.js\" \"vite --config client/vite.config.mjs\"",
     "staging:up": "docker compose --env-file .env.staging.runtime -f compose.staging.yml up --build -d",
     "staging:down": "docker compose --env-file .env.staging.runtime -f compose.staging.yml down",
-    "staging:prepare": "node server/scripts/create-staging-env.js"
+    "staging:prepare": "node server/scripts/create-staging-env.js",
+    "build:vercel": "npm run typecheck && npm run build && node server/scripts/build-vercel.cjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
@@ -66,6 +67,7 @@
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.7.0",
     "concurrently": "^9.2.0",
+    "esbuild": "^0.25.12",
     "mongodb-memory-server": "^10.3.0",
     "supertest": "^7.1.4",
     "tailwindcss": "^4.3.5",
