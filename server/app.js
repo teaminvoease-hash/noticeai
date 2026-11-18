@@ -20,16 +20,13 @@ function createApp({sessionStore}={}){
  const storage=require('./src/storage');
  const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:10*1024*1024,files:1}});
  app.post(['/api/file-upload','/api/picture-upload','/api/upload-recovery-document'],rateLimit({windowMs:60000,limit:12}),upload.any(),wrap(async(req,res)=>{
-  if(req.files?.length!==1)fail(400,'Choose one document');const file=req.files[0];const ext=path.extname(file.originalname).toLowerCase();const type=await import('file-type').then(m=>m.fileTypeFromBuffer(file.buffer));
-  const allowed={'.pdf':'application/pdf','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.doc':'application/x-cfb','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document'};
-  if(!allowed[ext]||allowed[ext]!==type?.mime)fail(400,'Use a valid PDF, PNG, JPG, DOC or DOCX document');
-  const File=require('./src/models/file.model');
-  if(!req.session.user&&await File.countDocuments({sessionId:req.sessionID})>=3)fail(429,'Complete registration before uploading more documents');
-  const name=crypto.randomUUID()+ext;await storage.save(name,file.buffer,type.mime);
-  try{await File.create({name,original:path.basename(file.originalname),ownerId:req.session.user?.id,role:req.session.user?.role,sessionId:req.session.user?undefined:req.sessionID});}catch(error){await storage.remove(name);throw error;}
-  res.json({success:true,image:name,fileName:name,filePath:'/uploads/'+name,fileUrl:'/uploads/'+name,originalName:file.originalname});
+  if(req.files?.length!==1)fail(400,'Choose one document');
+  res.json(await require('./src/services/privateUpload').persistUpload(req,req.files[0]));
  }));
- app.get('/uploads/:name',wrap(async(req,res)=>{if(!/^[\w.-]+$/.test(req.params.name)||!await fileAccess(req,req.params.name))fail(404,'File not found');res.set('Cache-Control','private, no-store');await storage.download(req.params.name,res)}));
+ app.use('/api',require('./src/fileTransfers').router);
+ app.get('/uploads/:name',wrap(async(req,res)=>{if(!/^[\w.-]+$/.test(req.params.name)||!await fileAccess(req,req.params.name))fail(404,'File not found');res.set('Cache-Control','private, no-store');
+ if(process.env.VERCEL==='1'&&(await storage.info(req.params.name)).size>3*1024*1024){res.type('html').send('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Private document download</title><body><main><h1>Preparing your private document</h1><p id="download-status" role="status">Downloading verified file parts…</p><button id="download-retry" hidden>Retry download</button><script src="/private-download.js" defer></script></main></body></html>');return;}
+ await storage.download(req.params.name,res)}));
  app.use('/api',require('./src/publicRoutes'));
  app.use('/api',require('./src/aiRoutes'));
  app.use('/api',require('./src/casework'));

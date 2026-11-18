@@ -57,3 +57,18 @@ async function read(name,limit=10*1024*1024){
  const file=await bucket().find({filename:name}).next();if(!file)throw Object.assign(new Error('Document not found'),{status:404});if(file.length>limit)throw Object.assign(new Error('Document is too large to process'),{status:413});let size=0;const parts=[];for await(const part of bucket().openDownloadStream(file._id)){size+=part.length;if(size>limit)throw Object.assign(new Error('Document is too large to process'),{status:413});parts.push(part)}return Buffer.concat(parts);
 }
 module.exports = { save, remove, download, attachment, read };
+
+async function info(name){
+ validateName(name);
+ if(useGridFS()){const file=await bucket().find({filename:name}).next();if(!file)throw Object.assign(new Error('File not found'),{status:404});return {name,size:file.length,contentType:file.metadata?.contentType||'application/octet-stream'};}
+ const stat=await fs.stat(path.join(directory(),name));return {name,size:stat.size,contentType:'application/octet-stream'};
+}
+async function readRange(name,start,end){
+ validateName(name);
+ if(useGridFS()){
+  const file=await bucket().find({filename:name}).next();if(!file)throw Object.assign(new Error('File not found'),{status:404});
+  const chunks=[];for await(const chunk of bucket().openDownloadStream(file._id,{start,end}))chunks.push(chunk);return Buffer.concat(chunks);
+ }
+ const handle=await fs.open(path.join(directory(),name),'r');try{const buffer=Buffer.alloc(end-start);const {bytesRead}=await handle.read(buffer,0,buffer.length,start);return buffer.subarray(0,bytesRead)}finally{await handle.close()}
+}
+module.exports.info=info;module.exports.readRange=readRange;
