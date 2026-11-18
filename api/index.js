@@ -27,15 +27,19 @@ const getApp = singleFlight(async () => {
   await require("../server/src/services/identityReadiness").provisionApprovedIdentityIndex(
     mongoose.connection.db, process.env,
   );
-  startupPhase = "application";
+  startupPhase = "application imports";
   const { createApp } = require("../server/app");
   const MongoStore = require("connect-mongo");
-  const app = createApp({
-    sessionStore: MongoStore.create({
-      client: mongoose.connection.getClient(),
-      autoRemove: staging ? "native" : "disabled",
-    }),
+  startupPhase = "session store";
+  const sessionStore = MongoStore.create({
+    client: mongoose.connection.getClient(),
+    autoRemove: staging ? "native" : "disabled",
   });
+  startupPhase = "application setup";
+  const app = createApp({
+    sessionStore,
+  });
+  startupPhase = "staging indexes";
   if (staging)
     await Promise.all(
       Object.values(mongoose.models).map((model) => model.init()),
@@ -51,6 +55,8 @@ module.exports = async function handler(req, res) {
     console.error("Vercel application unavailable:", {
       phase: startupPhase,
       type: error.name || "Error",
+      code: /^[A-Z_0-9]+$/.test(error.code || "") ? error.code : undefined,
+      frames: String(error.stack || "").split("\n").filter((line) => /^\s+at /.test(line)).slice(0, 5),
       configured: {
         mongo: Boolean(process.env.MONGODB_URI || process.env.MYNOTICE_MONGODB_URI),
         session: Boolean(process.env.SESSION_SECRET?.length >= 32),
