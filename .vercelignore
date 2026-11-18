@@ -1,0 +1,10 @@
+.git
+.env
+.env.*
+*.zip
+attachments
+node_modules
+.cache
+data
+docs
+/workspace
