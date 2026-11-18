@@ -5,6 +5,7 @@
 attachments
 node_modules
 .cache
-data
+/data
 docs
-/workspace
+!client/src/data/
+!client/src/data/**

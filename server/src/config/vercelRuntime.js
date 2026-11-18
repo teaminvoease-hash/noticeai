@@ -18,6 +18,12 @@ function runtimeConfig(source) {
     env.AI_FEATURES_ENABLED = "false";
   } else {
     // Do not silently create/use MongoDB's implicit "test" database in production.
+    if (env.MONGODB_DATABASE_NAME) {
+      if (!/^[a-zA-Z0-9_-]+$/.test(env.MONGODB_DATABASE_NAME))
+        throw new Error("Invalid application database name");
+      uri.pathname = "/" + env.MONGODB_DATABASE_NAME;
+      env.MONGODB_URI = uri.toString();
+    }
     if (!decodeURIComponent(uri.pathname.slice(1)))
       throw new Error(
         "Production MongoDB integration must name the existing application database",

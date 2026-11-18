@@ -24,6 +24,7 @@ router.post('/auth/:role/:action',wrap(async(req,res)=>{
  if(await Model.exists({email:new RegExp('^'+email.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'$','i')}))fail(409,'An account with this email already exists');await checkFiles(req);
  const fields=role==='lawyer'?['name','address','phone','enrollmentNo','barId','city','aadhaarFile','panFile','barIdFile']:['name','phone'];
  const body=Object.fromEntries(fields.filter(k=>typeof req.body[k]==='string').map(k=>[k,req.body[k]]));
+ await require('./services/identityReadiness').requireIdentityIndex();
  let u;const passwordHash=await bcrypt.hash(password,12);
  try{await mongoose.connection.transaction(async session=>{const id=new mongoose.Types.ObjectId();await Identity.create([{role,email,accountId:String(id)}],{session});[u]=await Model.create([{_id:id,...body,email,password:passwordHash,...(role==='client'?{client_id:'CLT-'+crypto.randomBytes(5).toString('hex'),status:'onboard'}:role==='lawyer'?{advocate_id:'ADV-'+crypto.randomBytes(5).toString('hex'),status:'pending'}:{})}],{session})})}catch(e){if(e.code===11000)fail(409,'An account with this email already exists');throw e;}
  if(role==='lawyer'){await File.updateMany({sessionId:req.sessionID},{$set:{ownerId:String(u._id),role},$unset:{sessionId:1}});return res.json({success:true,data:safe(u,role),message:'Application received. An administrator must approve your account before login.'});}

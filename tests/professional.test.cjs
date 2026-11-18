@@ -483,3 +483,40 @@ test("public fee display is disabled by default without altering configured pric
     else process.env.PUBLIC_PRICE_DISPLAY_APPROVED = old;
   }
 });
+
+test("missing identity index pauses account changes without altering the database", async () => {
+  const Identity = require("../server/src/models/accountIdentity.model");
+  await Identity.collection.drop();
+  const agent = request.agent(app);
+  const response = await call(agent, "post", "/api/auth/client/signup", {
+    name: "Synthetic blocked signup",
+    email: "schema-gate@example.test",
+    password: "Testing-password-123",
+  });
+  assert.equal(response.status, 503);
+  assert.match(response.body.message, /index setup/);
+  assert.equal(
+    await require("../server/src/access").Client.countDocuments({
+      email: "schema-gate@example.test",
+    }),
+    0,
+  );
+  const names = await mongoose.connection.db
+    .listCollections({ name: "account_identities" })
+    .toArray();
+  assert.equal(names.length, 0);
+  await Identity.collection.createIndex(
+    { role: 1, email: 1 },
+    { unique: true },
+  );
+  assert.equal(
+    (
+      await call(agent, "post", "/api/auth/client/signup", {
+        name: "Synthetic allowed signup",
+        email: "schema-gate@example.test",
+        password: "Testing-password-123",
+      })
+    ).status,
+    200,
+  );
+});

@@ -44,6 +44,16 @@ test("Vercel production preserves explicit existing database and does not silent
       }),
     /name the existing/,
   );
+  assert.equal(
+    new URL(
+      runtimeConfig({
+        ...base,
+        MYNOTICE_MONGODB_URI: "mongodb://127.0.0.1:27017/",
+        MONGODB_DATABASE_NAME: "noticeai",
+      }).MONGODB_URI,
+    ).pathname,
+    "/noticeai",
+  );
   assert.throws(
     () => runtimeConfig({ ...base, SESSION_SECRET: "" }),
     /secret/i,

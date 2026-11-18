@@ -17,6 +17,7 @@ async function saveAccount(Model, role, id, input) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(patch.email))
       throw problem(400, "Enter a valid email address.");
   }
+  if (patch.email !== undefined) await require("./identityReadiness").requireIdentityIndex();
   let data;
   try {
     await mongoose.connection.transaction(async (session) => {
