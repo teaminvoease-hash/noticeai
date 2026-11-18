@@ -160,6 +160,7 @@ router.post(
           {
             clientId: n.clientId,
             noticeId: n.noticeId,
+            matterId: String(n._id), section: "next-action",
             notificationId: "NTF-" + require("crypto").randomUUID(),
             channel: "Portal",
             message: note,

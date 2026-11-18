@@ -26,12 +26,12 @@ const descriptions = [
     section: "signed",
   },
   {
-    action: "The administrator must record actual dispatch details.",
+    action: "Administration or the assigned advocate must upload the courier receipt and record actual dispatch details.",
     next: "A tracking record is not a guarantee of service or a legal outcome.",
     section: "delivery",
   },
   {
-    action: "The administrator must update the recorded delivery status.",
+    action: "Administration or the assigned advocate must record delivery progress and keep the client updated.",
     next: "Returned or disputed delivery may need further instructions and professional assessment.",
     section: "delivery",
   },

@@ -568,18 +568,22 @@ const assignNoticeToLawyer = async (req, res) => {
 
     const client = await Client.findById(notice.clientId).select("name email owner_name ownerName");
 
-    const updated = await ClientNotice.findOneAndUpdate(
-      {_id:notice._id,updatedAt:notice.updatedAt,signedFile:{$in:[null, ""]}},
+    let updated;
+    await require("mongoose").connection.transaction(async session => {
+    updated = await ClientNotice.findOneAndUpdate(
+      {_id:notice._id,updatedAt:notice.updatedAt,paymentStatus:"Paid",signedFile:{$in:[null, ""]}},
       {
         ...(String(notice.lawyerId)!==String(lawyer._id)?{status:"pending"}:{}),
         lawyerId: String(lawyer._id),
         lawyerName: lawyer.name || "",
         lawyerCode: lawyer.advocate_id || "",
       },
-      { new: true }
+      { new: true, session }
     );
 
-    if(!updated)return res.status(409).json({success:false,message:"The matter changed or was signed. Refresh before assignment."});
+    if(!updated)require("../access").fail(409,"The matter changed or was signed. Refresh before assignment.");
+    await require("../matterServices").event(req, updated, "Advocate assigned", "Your request has been assigned for mandatory advocate vetting and finalization.", session);
+    });
 
     await sendNoticeAssignedEmails({
       lawyer,
@@ -876,7 +880,7 @@ const getDeliveryTracking = async (req, res) => {
     const filter = clientId ? { clientId } : {};
     const notices = await ClientNotice.find({ $and: [filter, req.scope || {}] }).sort({ createdAt: -1 });
 
-    const data = notices.map(n => ({noticeId:n.noticeId,courier:n.courier || '',trackingId:n.trackingId || '',dispatchDate:n.dispatchDate || '',status:n.deliveryStatus || 'Not dispatched',proofOfDelivery:n.proofOfDelivery || ''}));
+    const data = notices.map(n => ({_id:n._id,noticeId:n.noticeId,courierReceipt:n.courierReceipt||'',nextUpdateAt:n.nextUpdateAt||null,courier:n.courier || '',trackingId:n.trackingId || '',dispatchDate:n.dispatchDate || '',status:n.deliveryStatus || 'Not dispatched',proofOfDelivery:n.proofOfDelivery || ''}));
 
     return res.status(200).json({ success: true, data });
   } catch (err) {
@@ -894,7 +898,7 @@ const getDownloads = async (req, res) => {
     const noticeFiles = notices.filter(n=>n.signedFile).map(n=>({noticeId:n.noticeId,fileType:'Final Signed Notice',fileName:n.signedFile,status:'Ready',availableOn:n.updatedAt}));
     const paymentFiles = notices.filter(n=>n.proofOfDelivery).map(n=>({noticeId:n.noticeId,fileType:'Proof of Delivery',fileName:n.proofOfDelivery,status:'Ready',availableOn:n.updatedAt}));
 
-    return res.status(200).json({ success: true, data: [...noticeFiles, ...paymentFiles] });
+    return res.status(200).json({ success: true, data: [...noticeFiles, ...paymentFiles, ...notices.filter(n=>n.courierReceipt).map(n=>({noticeId:n.noticeId,fileType:'Courier Receipt',fileName:n.courierReceipt,status:'Ready',availableOn:n.updatedAt}))] });
   } catch (err) {
     return res.status(400).json({ success: false, message: "Error: " + err.message });
   }

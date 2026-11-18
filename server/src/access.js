@@ -17,14 +17,15 @@ async function fileAccess(req,name){
  if(user.role==='admin')return !!f;
  const scope=user.role==='client'?{clientId:user.id}:{lawyerId:user.id};
  const notices=await ClientNotice.find(scope);const codes=notices.map(n=>n.noticeId),clients=notices.map(n=>n.clientId);
- if(notices.some(n=>[n.authorityLetter,n.supportingDocument,n.signedFile,n.proofOfDelivery,...(n.supportingDocuments||[])].includes(name)))return true;
+ if(notices.some(n=>[n.authorityLetter,n.supportingDocument,n.signedFile,n.proofOfDelivery,n.courierReceipt,...(n.supportingDocuments||[])].includes(name)))return true;
+ if(await require('./models/matterWork.model').MatterEvent.exists({noticeId:{$in:codes},'attachments.fileName':name}))return true;
  if(await ClientDocument.exists({noticeId:{$in:codes},$or:[{fileName:name},{responseFiles:name},{"responseHistory.files":name}]}))return true;
  if(await ClientDefaulter.exists({clientId:{$in:user.role==='client'?[user.id]:clients},agreementFile:name}))return true;
  if(await Client.exists({_id:{$in:user.role==='client'?[user.id]:clients},$or:[{authorityLetter:name},{authorityTemplate:name}]}))return true;
  return false;
 }
 async function checkFiles(req){
- const fields=['authorityTemplate','authorityLetter','supportingDocument','fileName','aadhaarFile','panFile','barIdFile','signatureImage','signedFile','proofOfDelivery','agreementFile'];
+ const fields=['authorityTemplate','authorityLetter','supportingDocument','fileName','aadhaarFile','panFile','barIdFile','signatureImage','signedFile','proofOfDelivery','courierReceipt','agreementFile'];
  for(const key of fields){const name=req.body[key];if(name&&(!/^[\w.-]+$/.test(name)||!await fileAccess(req,name)))fail(403,'File is not available to this account');}
  for(const name of req.body.responseFiles||[])if(!await fileAccess(req,name))fail(403,'File is not available to this account');
 }

@@ -39,6 +39,7 @@ test('full client intake, payment verification, assignment and document ownershi
  const callback={...data,status:'success'};callback.hash=require('../server/src/payments').responseHash(callback,'test-salt','test-key');
  assert.equal((await request(app).post('/api/payu/success').send({...callback,amount:'0.01'})).status,400);
  assert.equal((await request(app).post('/api/payu/success').send(callback)).status,302);assert.equal((await request(app).post('/api/payu/success').send(callback)).status,302);
+ assert.equal(await require('../server/src/access').ClientNotification.countDocuments({noticeId:code,message:/^Payment verified\./}),1,'repeated gateway callbacks notify the client only once');
  const assignment=await call(admin,'post','/api/client-portal/notices/'+id+'/assign-lawyer',{lawyerId:lawyerUser.id});assert.equal(assignment.body.success,true,JSON.stringify(assignment.body));
  assert.equal((await lawyer.get('/api/client-portal/notices')).body.data.length,1);
  assert.equal((await lawyer.get('/api/client-portal/workflow')).body.data[0].workflow.step,3);

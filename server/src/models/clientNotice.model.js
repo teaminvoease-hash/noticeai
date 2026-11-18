@@ -34,6 +34,7 @@ const clientNoticeSchema = new Schema(
     dispatchDate: String,
     deliveryStatus: String,
     proofOfDelivery: String,
+    courierReceipt: String,
     clientId: { type: String, required: true },
     noticeId: { type: String, required: true, unique: true },
     subject: { type: String, required: true },

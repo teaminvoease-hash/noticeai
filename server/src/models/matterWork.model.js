@@ -27,6 +27,7 @@ const eventSchema = new Schema(
     actorRole: String,
     label: { type: String, required: true },
     detail: String,
+    attachments: [{ kind: String, fileName: String }],
   },
   { timestamps: true },
 );

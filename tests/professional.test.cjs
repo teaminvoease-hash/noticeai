@@ -484,6 +484,76 @@ test("public fee display is disabled by default without altering configured pric
   }
 });
 
+test("signed copy and courier updates notify only the owning client and preserve private receipts", async () => {
+  const n = await matter("QA-COURIER-001"), url = "/api/client-portal/notices/" + n.id;
+  await call(admin, "post", "/api/advocates/" + users.lawyer.id + "/credential-review", credentials);
+  const delivery = { courier: "Synthetic carrier", trackingId: "QA-TRACK-001", dispatchDate: "2026-11-18", deliveryStatus: "In Transit", note: "The signed notice was handed to the carrier today." };
+  assert.equal((await call(admin, "post", url + "/delivery", delivery)).status, 409);
+  assert.equal((await call(client, "post", url + "/delivery", delivery)).status, 403);
+  assert.equal((await call(otherLawyer, "post", url + "/delivery", delivery)).status, 404);
+  assert.equal((await call(lawyer, "post", url + "/status", { status: "approved", revision: 0, vetting })).status, 200);
+  async function upload(agent, name) {
+    const s = await agent.get("/api/session");
+    const r = await agent.post("/api/file-upload").set("X-CSRF-Token", s.body.csrf)
+      .attach("file", Buffer.from("%PDF-1.7\nSynthetic QA document\n%%EOF"), { filename: name, contentType: "application/pdf" });
+    assert.equal(r.status, 200); assert.equal(r.body.success, true); return r.body.fileName;
+  }
+  const signed = await upload(lawyer, "signed.pdf");
+  assert.equal((await call(lawyer, "post", url + "/signed-file", { signedFile: signed, revision: 0 })).status, 200);
+  let feed = (await client.get("/api/client-portal/notification-feed")).body.data;
+  assert.ok(feed.items.some(i => i.matterId === n.id && i.section === "signed"));
+  const { ClientNotification } = require("../server/src/access");
+  const count = () => ClientNotification.countDocuments({ noticeId: n.noticeId });
+  const before = await count(), receipt = await upload(lawyer, "receipt.pdf");
+  const body = { ...delivery, courierReceipt: receipt, nextUpdateAt: new Date(Date.now() + 86400000).toISOString() };
+  assert.equal((await call(lawyer, "post", url + "/delivery", { ...body, dispatchDate: "2026-02-30" })).status, 400);
+  const foreign = await upload(outsider, "foreign.pdf");
+  assert.equal((await call(lawyer, "post", url + "/delivery", { ...body, courierReceipt: foreign })).status, 403);
+  const result = await call(lawyer, "post", url + "/delivery", body);
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.equal(await count(), before + 1);
+  assert.equal((await call(lawyer, "post", url + "/delivery", body)).status, 200);
+  assert.equal(await count(), before + 1, "identical retries do not duplicate notifications");
+  assert.equal((await client.get("/uploads/" + receipt)).status, 200);
+  assert.equal((await outsider.get("/uploads/" + receipt)).status, 404);
+  assert.equal((await otherLawyer.get("/uploads/" + receipt)).status, 404);
+  const receipt2 = await upload(admin, "updated-receipt.pdf"), proof = await upload(admin, "delivery-proof.pdf");
+  assert.equal((await call(admin, "post", url + "/delivery", { ...delivery, deliveryStatus: "Delivered", courierReceipt: receipt2, proofOfDelivery: proof, expectedUpdatedAt: result.body.data.updatedAt })).status, 200);
+  const view = (await client.get("/api/matters/" + n.id)).body.data;
+  assert.equal(view.notice.courierReceipt, receipt2); assert.equal(view.notice.nextUpdateAt, null);
+  assert.ok(view.events.some(e => e.attachments.some(f => f.fileName === receipt)));
+  assert.equal((await client.get("/uploads/" + receipt)).status, 200, "historical receipt remains accessible");
+  const tracking = (await client.get("/api/client-portal/delivery-tracking")).body.data.find(r => r.noticeId === n.noticeId);
+  assert.equal(tracking.courierReceipt, receipt2);
+  const downloads = (await client.get("/api/client-portal/downloads")).body.data;
+  assert.ok(downloads.some(r => r.fileType === "Courier Receipt" && r.fileName === receipt2));
+  feed = (await client.get("/api/client-portal/notification-feed")).body.data;
+  const notification = feed.items.find(i => i.matterId === n.id && i.section === "delivery");
+  assert.match(notification.message, /Delivered/);
+  assert.equal((await outsider.get("/api/client-portal/notification-feed")).body.data.items.some(i => i.noticeId === n.noticeId), false);
+  assert.equal((await call(outsider, "patch", "/api/client-portal/notifications/" + notification._id + "/read")).status, 404);
+  assert.equal((await call(client, "patch", "/api/client-portal/notifications/" + notification._id + "/read")).status, 200);
+  const stableCount = await count();
+  assert.equal((await call(admin, "post", url + "/delivery", { ...delivery, expectedUpdatedAt: result.body.data.updatedAt })).status, 409);
+  assert.equal(await count(), stableCount);
+  // The receipt/status change and client notification must commit together.
+  const original = ClientNotification.create;
+  ClientNotification.create = async () => { throw Error("Synthetic notification write failure"); };
+  try {
+    assert.equal((await call(admin, "post", url + "/delivery", { ...delivery, note: "Synthetic rollback check: do not commit this update." })).status, 500);
+  } finally { ClientNotification.create = original; }
+  const unchanged = await require("../server/src/access").ClientNotice.findById(n.id);
+  assert.equal(unchanged.deliveryStatus, "Delivered"); assert.equal(unchanged.courierReceipt, receipt2);
+  assert.equal(await count(), stableCount);
+});
+
+test("administration cannot assign an unpaid notice", async () => {
+  const n = await matter("QA-UNPAID-ASSIGN");
+  await require("../server/src/access").ClientNotice.updateOne({ _id: n.id }, { $set: { paymentStatus: "Pending", lawyerId: "" } });
+  assert.equal((await call(admin, "post", "/api/client-portal/notices/" + n.id + "/assign-lawyer", { lawyerId: users.lawyer.id })).status, 409);
+  assert.equal((await require("../server/src/access").ClientNotice.findById(n.id)).lawyerId, "");
+});
+
 test("missing identity index pauses account changes without altering the database", async () => {
   const Identity = require("../server/src/models/accountIdentity.model");
   await Identity.collection.drop();

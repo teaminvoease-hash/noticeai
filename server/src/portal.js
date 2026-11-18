@@ -22,7 +22,7 @@ router.use(wrap(async(req,res,next)=>{
  next();
 }));
 router.use((req,res,next)=>{
- const labels={'assign-lawyer':'Advocate assigned','signed-file':'Final signed PDF uploaded','delivery':'Delivery record updated','send-email':'Signed notice emailed'};
+ const labels={'send-email':'Signed notice emailed'};
  const match=req.path.match(/^\/notices\/([^/]+)\/([^/]+)$/);if(req.method==='GET'||!match||!labels[match[2]])return next();
  const send=res.json.bind(res);res.json=data=>{if(!data.success)return send(data);return (async()=>{const n=await a.ClientNotice.findById(match[1]);if(n)await require('./matterServices').event(req,n,labels[match[2]],match[2]==='status'?String(n.status):'');return send(data)})().catch(next)};next();
 });
@@ -39,12 +39,12 @@ router.get('/notices',run('getNotices'));
 router.post('/notices',allow('client'),(req,res,next)=>{delete req.body.intakeDraftId;next()},run('submitNotice'));
 router.post('/notices/preview',allow('client'),run('previewNotice'));
 router.put('/notices/:id',allow('client'),wrap(async(req,res,next)=>{const n=await noticeAccess(req,req.params.id);if(n.paymentStatus==='Paid'||n.lawyerId)fail(409,'This notice is already in review');next()}),run('updateNotice'));
-router.post('/notices/:id/assign-lawyer',allow('admin'),wrap(async(req,res,next)=>{const n=await noticeAccess(req,req.params.id);if(n.signedFile)fail(409,'A signed final notice cannot be reassigned');const l=await a.Lawyer.findById(req.body.lawyerId);if(!l||!['active','verified'].includes(l.status))fail(400,'Choose an approved lawyer');next()}),run('assignNoticeToLawyer'));
+router.post('/notices/:id/assign-lawyer',allow('admin'),wrap(async(req,res,next)=>{const n=await noticeAccess(req,req.params.id);if(n.signedFile)fail(409,'A signed final notice cannot be reassigned');if(n.paymentStatus!=='Paid')fail(409,'Verify payment before assigning an advocate');const l=await a.Lawyer.findById(req.body.lawyerId);if(!l||!['active','verified'].includes(l.status))fail(400,'Choose an approved lawyer');next()}),run('assignNoticeToLawyer'));
 router.post('/notices/:id/status',allow('admin','lawyer'),wrap(require('./matterServices').reviewNotice));
 router.post('/notices/:id/generated-notice',allow('lawyer'),wrap(require('./matterServices').saveDraft));
 router.post('/notices/:id/send-email',allow('lawyer'),wrap(async(req,res,next)=>{const n=await noticeAccess(req,req.params.id);if(n.paymentStatus!=='Paid'||!n.signedFile||!['approved','verified'].includes(n.status))fail(409,'Payment, review approval and signed document are required before dispatch');await require('./services/professionalReview').requireVetting(n);next()}),run('sendNoticeEmailToDefaulter'));
 router.post('/notices/:id/signed-file',allow('lawyer'),wrap(require('./matterServices').signNotice));
-router.post('/notices/:id/delivery',allow('admin'),wrap(async(req,res)=>{const n=await noticeAccess(req,req.params.id);if(!n.signedFile)fail(409,'Upload a signed notice first');await require('./services/professionalReview').requireVetting(n);if(!String(req.body.courier||'').trim()||!String(req.body.trackingId||'').trim()||!/^\d{4}-\d{2}-\d{2}$/.test(req.body.dispatchDate||'')||!Number.isFinite(Date.parse(req.body.dispatchDate)))fail(400,'Courier, tracking reference and a valid dispatch date are required');const fields=['courier','trackingId','dispatchDate','deliveryStatus','proofOfDelivery'];if(!['Not dispatched','In Transit','Delivered','Returned'].includes(req.body.deliveryStatus))fail(400,'Invalid delivery status');for(const k of fields)if(typeof req.body[k]==='string')n[k]=req.body[k];await n.save();res.json({success:true,data:n})}));
+router.post('/notices/:id/delivery',allow('admin','lawyer'),wrap(require('./services/deliveryUpdates').saveDelivery));
 router.get('/documents',run('getDocuments'));
 router.post('/documents',wrap(async(req,res,next)=>{const n=await noticeAccess(req,req.body.noticeId,true);if(n.signedFile)fail(409,'A final signed notice cannot change documents');req.documentMatter=n;req.body.clientId=n.clientId;req.body.requestedByRole=req.session.user.role;req.body.requestedById=req.session.user.id;req.body.status=req.body.fileName||(req.body.responseFiles||[]).length?'Uploaded':'Requested';if(req.session.user.role==='client'){req.body.requestedByRole='client';req.body.requestedById=req.session.user.id}else if(req.session.user.role==='lawyer'){req.body.clientEmail=(await a.Client.findById(n.clientId))?.email||''}next()}),run('uploadDocument'));
 router.put('/documents/:id',wrap(async(req,res)=>{
@@ -56,6 +56,16 @@ router.post('/payments',allow('client'),wrap(async(req,res,next)=>{const n=await
 router.get('/delivery-tracking',allow('admin','client'),run('getDeliveryTracking'));
 router.get('/downloads',allow('admin','client'),run('getDownloads'));
 router.get('/notifications',allow('admin','client'),run('getNotifications'));
+router.get('/notification-feed',allow('client'),wrap(async(req,res)=>{
+ const filter={clientId:req.session.user.id};
+ const [items,unreadCount]=await Promise.all([
+  a.ClientNotification.find(filter).sort({_id:-1}).limit(50).lean(),
+  a.ClientNotification.countDocuments({...filter,status:'Unread'})
+ ]);
+ const notices=await a.ClientNotice.find({...filter,noticeId:{$in:items.map(n=>n.noticeId).filter(Boolean)}}).select('_id noticeId').lean();
+ const map=new Map(notices.map(n=>[n.noticeId,String(n._id)]));
+ res.set('Cache-Control','private, no-store').json({success:true,data:{items:items.map(n=>({...n,matterId:map.get(n.noticeId)||null,section:['delivery','signed','documents','next-action','assignment'].includes(n.section)?n.section:'timeline'})),unreadCount}});
+}));
 router.post('/notifications',allow('admin'),run('createNotification'));
 router.patch('/notifications/:id/read',allow('client'),wrap(async(req,res,next)=>{if(!await a.ClientNotification.exists({_id:req.params.id,clientId:req.session.user.id}))fail(404,'Notification not found');next()}),run('markNotificationRead'));
 router.all('/profile/:clientId',allow('client','admin'),(req,res,next)=>{if(req.session.user.role!=='admin'&&req.params.clientId!==req.session.user.id)return res.status(403).json({success:false,message:'Access denied'});next()});

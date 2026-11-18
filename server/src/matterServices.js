@@ -8,19 +8,14 @@ const docState = (d) =>
     : (d.responseFiles || []).length || d.fileName
       ? "Uploaded"
       : "Requested";
-const event = (req, notice, label, detail = "", session) =>
-  MatterEvent.create(
-    [
-      {
-        noticeId: notice.noticeId,
-        actorId: req.session.user.id,
-        actorRole: req.session.user.role,
-        label,
-        detail,
-      },
-    ],
-    session ? { session } : {},
-  );
+const event = async (req, notice, label, detail = "", session) => {
+  const records = await MatterEvent.create([{ noticeId: notice.noticeId, actorId: req.session.user.id,
+    actorRole: req.session.user.role, label, detail }], session ? { session } : {});
+  if (["admin", "lawyer"].includes(req.session.user.role) && label !== "Client handoff update")
+    await require("./services/clientUpdates").notifyClient(notice, label + (detail ? ": " + detail : ""), session,
+      /signed/i.test(label) ? "signed" : /document/i.test(label) ? "documents" : "timeline");
+  return records;
+};
 // Every document mutation writes the parent matter in the same transaction.
 // This serializes it with signing and reassignment and invalidates old approval.
 async function lockDocumentMatter(req, notice, session) {
@@ -427,6 +422,7 @@ async function signNotice(req, res) {
       { new: true, session },
     );
     if (!data) a.fail(409, "The matter changed. Refresh before uploading.");
+    await event(req, data, "Final signed PDF uploaded", "Your advocate has uploaded the final signed PDF. You can download it from your matter.", session);
   });
   res.json({ success: true, data });
 }
