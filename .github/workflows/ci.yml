@@ -15,7 +15,9 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - run: npm run build
+      - run: npm run build:vercel
+      - name: Check Vercel CommonJS loader compatibility
+        run: SESSION_SECRET=isolated-ci-module-compatibility-secret APP_ENV=staging VERCEL=1 node --no-experimental-require-module -e 'require("./server/app").createApp({sessionStore:new(require("express-session").MemoryStore)()})'
       - name: Start isolated MongoDB replica set
         run: |
           docker run -d --name noticeai-test-mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
