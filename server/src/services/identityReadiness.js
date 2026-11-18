@@ -23,4 +23,13 @@ async function requireIdentityIndex() {
       { status: 503 },
     );
 }
-module.exports = { requireIdentityIndex };
+// Explicit operator-only switch for the user-approved additive schema setup.
+// Never initializes other models, migrates accounts, or modifies existing records.
+async function provisionApprovedIdentityIndex(db, env = process.env) {
+  if (env.APP_ENV !== "production" || env.PROVISION_IDENTITY_INDEX !== "true") return;
+  if (db.databaseName !== "noticeai") throw new Error("Identity setup requires the approved database");
+  await db.collection("account_identities").createIndex(
+    { role: 1, email: 1 }, { unique: true, name: "role_1_email_1" },
+  );
+}
+module.exports = { requireIdentityIndex, provisionApprovedIdentityIndex };

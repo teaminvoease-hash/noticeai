@@ -1,13 +1,17 @@
 const { assertIsolation, assertRuntimeSecrets } = require("./isolation");
 function runtimeConfig(source) {
   const env = { ...source };
+  env.VERCEL = "1";
   env.MONGODB_URI ||= env.MYNOTICE_MONGODB_URI;
   if (!env.MONGODB_URI)
     throw new Error("MongoDB integration is not configured");
   const uri = new URL(env.MONGODB_URI);
   if (!["mongodb:", "mongodb+srv:"].includes(uri.protocol))
     throw new Error("MongoDB integration is invalid");
-  if (env.VERCEL_ENV === "preview") {
+  const deploymentEnvironment = env.VERCEL_ENV || ({ staging: "preview", production: "production" })[env.APP_ENV];
+  if (!["preview", "production"].includes(deploymentEnvironment))
+    throw new Error("Set the deployment environment explicitly");
+  if (deploymentEnvironment === "preview") {
     env.APP_ENV = "staging";
     env.STAGING_DATABASE_NAME = "noticeai_vercel_staging";
     uri.pathname = "/" + env.STAGING_DATABASE_NAME;

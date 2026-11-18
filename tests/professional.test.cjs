@@ -487,6 +487,7 @@ test("public fee display is disabled by default without altering configured pric
 test("missing identity index pauses account changes without altering the database", async () => {
   const Identity = require("../server/src/models/accountIdentity.model");
   await Identity.collection.drop();
+  assert.equal((await request(app).get("/api/health")).status, 503);
   const agent = request.agent(app);
   const response = await call(agent, "post", "/api/auth/client/signup", {
     name: "Synthetic blocked signup",
@@ -509,6 +510,7 @@ test("missing identity index pauses account changes without altering the databas
     { role: 1, email: 1 },
     { unique: true },
   );
+  assert.equal((await request(app).get("/api/health")).status, 200);
   assert.equal(
     (
       await call(agent, "post", "/api/auth/client/signup", {

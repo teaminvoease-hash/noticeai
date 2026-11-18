@@ -9,6 +9,7 @@ const base = {
   SESSION_SECRET: "isolated-unit-secret-not-a-real-credential",
   MYNOTICE_MONGODB_URI: "mongodb://127.0.0.1:27017/existing_app",
   APP_ORIGIN: "https://example.vercel.app",
+  APP_ENV: "production",
 };
 test("Vercel preview isolates database, cookie, AI, payment and outbound mail without changing input", () => {
   const input = {
@@ -30,6 +31,23 @@ test("Vercel preview isolates database, cookie, AI, payment and outbound mail wi
   assert.equal(result.STAGING_ALLOW_EXTERNAL_DELIVERY, "false");
   assert.equal(result.UPLOAD_STORAGE, "gridfs");
   assert.equal(input.PAYU_IS_LIVE, "true");
+});
+test("explicit app configuration works without exposing Vercel system variables", () => {
+  const staging = runtimeConfig({ ...base, APP_ENV: "staging" });
+  assert.equal(new URL(staging.MONGODB_URI).pathname, "/noticeai_vercel_staging");
+  assert.equal(staging.VERCEL, "1");
+  assert.throws(() => runtimeConfig({ ...base, APP_ENV: "" }), /environment explicitly/);
+});
+test("approved identity setup only creates the exact unique index in the approved database", async () => {
+  const { provisionApprovedIdentityIndex } = require("../server/src/services/identityReadiness");
+  const calls = [];
+  const db = { databaseName: "noticeai", collection(name) { calls.push(name); return { async createIndex(keys, options) { calls.push({ keys, options }); } }; } };
+  await provisionApprovedIdentityIndex(db, { APP_ENV: "production" });
+  await provisionApprovedIdentityIndex(db, { APP_ENV: "staging", PROVISION_IDENTITY_INDEX: "true" });
+  assert.equal(calls.length, 0);
+  await assert.rejects(provisionApprovedIdentityIndex({ ...db, databaseName: "other" }, { APP_ENV: "production", PROVISION_IDENTITY_INDEX: "true" }));
+  await provisionApprovedIdentityIndex(db, { APP_ENV: "production", PROVISION_IDENTITY_INDEX: "true" });
+  assert.deepEqual(calls, ["account_identities", { keys: { role: 1, email: 1 }, options: { unique: true, name: "role_1_email_1" } }]);
 });
 test("Vercel production preserves explicit existing database and does not silently fall back to test", () => {
   assert.equal(
