@@ -1,5 +1,6 @@
 import { useHashNavigation } from "@/hooks/useHashNavigation";
 import StagingBanner from "./StagingBanner";
+import { useClientUpdates } from "@/lib/notifications";
 import { useEffect, useState, useRef, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -239,6 +240,7 @@ export default function RoleShell({
   actions,
   children,
 }: ShellProps) {
+  const notifications = useClientUpdates(role === "client");
   const user = useSelector(
       (s: unknown) =>
         (s as { userReducer: { userData: SessionUser | "" } }).userReducer
@@ -394,12 +396,14 @@ export default function RoleShell({
                     : "/" + role + "-dashboard"
                 }
                 aria-label={
-                  role === "client" ? "Open notifications" : "Open work queue"
+                  role === "client" ? `Open notifications, ${notifications.unreadCount} unread` : "Open work queue"
                 }
               >
                 <Bell size={20} />
+                {role === "client" && notifications.unreadCount > 0 && <span className="rounded-full bg-primary px-1.5 text-xs text-white">{notifications.unreadCount > 99 ? "99+" : notifications.unreadCount}</span>}
               </Link>
             </Button>
+            {role === "client" && <span role="status" className="sr-only">{notifications.loaded ? `${notifications.unreadCount} unread client updates` : ""}</span>}
             <span className="shell-avatar" title={name}>
               {name
                 .split(" ")

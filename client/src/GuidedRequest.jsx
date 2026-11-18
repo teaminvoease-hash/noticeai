@@ -353,7 +353,7 @@ export default function GuidedRequest() {
         "POST",
         { revision: revision.current },
       );
-      navigate("/matters/" + result._id, { replace: true });
+      navigate("/matters/" + result._id + "#payment", { replace: true });
     } catch (e) {
       setError(e.message);
     } finally {
@@ -477,6 +477,7 @@ export default function GuidedRequest() {
               Save and close
             </button>
           </div>
+          <p>Choose a notice type and attach your records, complete the recipient and facts, then review your request and payment. After payment verification, administration assigns an advocate for mandatory vetting, finalization and signed-copy upload. You will receive in-app progress updates.</p>
           <ol className="request-steps" aria-label="Request progress">
             {steps.map((title, i) => (
               <li key={title} aria-current={step === i ? "step" : undefined}>
@@ -554,6 +555,7 @@ export default function GuidedRequest() {
                     )}
                   </>
                 )}
+                {step === 0 && <details className="my-4"><summary>Attach documents now (optional)</summary><label htmlFor="request-early-files">Supporting records, up to five files and 10 MB each</label><input id="request-early-files" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" disabled={uploading || busy} onChange={upload}/><p>{form.supportingDocuments.length} documents attached. You can review and change them in the Documents step.</p></details>}
                 {step === 1 && (
                   <>
                     <label htmlFor="request-defaulterId">
