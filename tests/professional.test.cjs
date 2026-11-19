@@ -554,6 +554,79 @@ test("administration cannot assign an unpaid notice", async () => {
   assert.equal((await require("../server/src/access").ClientNotice.findById(n.id)).lawyerId, "");
 });
 
+test("assigned advocate revises AI notice, edits it, re-vets the new version and signs without bypassing review", async () => {
+  const before = { fetch: global.fetch, enabled: process.env.AI_FEATURES_ENABLED, key: process.env.OPENAI_API_KEY };
+  try {
+    process.env.AI_FEATURES_ENABLED = "true"; process.env.OPENAI_API_KEY = "synthetic-mocked-provider";
+    const n = await matter("QA-AI-REVISION"), url = "/api/ai/matters/" + n.id + "/revise";
+    await call(admin, "post", "/api/advocates/" + users.lawyer.id + "/credential-review", credentials);
+    assert.equal((await call(lawyer, "post", "/api/client-portal/notices/" + n.id + "/status", { status: "approved", revision: 0, vetting })).status, 200);
+    let outbound = 0;
+    const proposalText = "Synthetic AI revision.\n\nThe advocate must verify the requested remedy.";
+    global.fetch = async (url, options) => {
+      outbound++; assert.equal(url, "https://api.openai.com/v1/responses");
+      const payload = JSON.parse(JSON.parse(options.body).input[1].content[0].text);
+      assert.match(payload.currentDraft, /Synthetic draft content/);
+      assert.equal(payload.revisionInstructions, "Clarify the requested remedy using only the supplied facts.");
+      return { ok: true, json: async () => ({ output_text: proposalText }) };
+    };
+    const body = { revision: 0, consentToAi: true, instructions: "Clarify the requested remedy using only the supplied facts." };
+    assert.equal((await call(client, "post", url, body)).status, 403);
+    assert.equal((await call(admin, "post", url, body)).status, 403);
+    assert.equal((await call(otherLawyer, "post", url, body)).status, 404);
+    assert.equal((await call(lawyer, "post", url, { ...body, revision: 9 })).status, 409);
+    const proposed = await call(lawyer, "post", url, body);
+    assert.equal(proposed.status, 200, JSON.stringify(proposed.body)); assert.equal(outbound, 1);
+    const artifact = proposed.body.data.artifact, applyUrl = "/api/ai/artifacts/" + artifact._id + "/apply";
+    assert.equal(artifact.intent, "revision");
+    assert.equal((await require("../server/src/access").ClientNotice.findById(n.id)).draftRevision, 0, "AI generation does not overwrite the notice");
+    assert.equal((await call(otherLawyer, "post", applyUrl, { reviewed: true })).status, 404);
+    assert.equal((await call(lawyer, "post", applyUrl, { reviewed: true, editedDraft: " " })).status, 400);
+    const edited = "Advocate-corrected notice based on the supplied evidence.\n\n<script>untrusted()</script> is quoted text, not executable markup.";
+    const applied = await call(lawyer, "post", applyUrl, { reviewed: true, editedDraft: edited });
+    assert.equal(applied.status, 200); assert.equal(applied.body.data.draftRevision, 1); assert.equal(applied.body.data.status, "pending");
+    assert.match(applied.body.data.generatedNotice, /Advocate-corrected/); assert.doesNotMatch(applied.body.data.generatedNotice, /<script>/);
+    const savedArtifact = await mongoose.models.ai_artifacts.findById(artifact._id);
+    assert.equal(savedArtifact.draft, proposalText, "original AI proposal remains unchanged"); assert.equal(savedArtifact.appliedRevision, 1);
+    const version = await require("../server/src/models/matterWork.model").DraftVersion.findOne({ noticeId: n.noticeId, revision: 1 });
+    assert.equal(version.aiArtifactId, artifact._id); assert.match(version.label, /Advocate-edited/);
+    const portal = (await client.get("/api/ai/matters/" + n.id + "/artifacts")).body.data;
+    assert.equal(portal[0].instructions, undefined, "staff revision instructions are not exposed to the client");
+    assert.equal((await call(lawyer, "post", applyUrl, { reviewed: true })).status, 409);
+    const session = await lawyer.get("/api/session");
+    const upload = await lawyer.post("/api/file-upload").set("X-CSRF-Token", session.body.csrf).attach("file", Buffer.from("%PDF-1.7\nSynthetic signed QA only\n%%EOF"), { filename: "ai-revision-signed.pdf", contentType: "application/pdf" });
+    const signUrl = "/api/client-portal/notices/" + n.id + "/signed-file", signedBody = { revision: 1, signedFile: upload.body.fileName };
+    assert.equal((await call(lawyer, "post", signUrl, signedBody)).status, 409, "old approval cannot authorise the edited notice");
+    assert.equal((await call(lawyer, "post", "/api/client-portal/notices/" + n.id + "/status", { status: "approved", revision: 1, vetting })).status, 200);
+    assert.equal((await call(lawyer, "post", signUrl, signedBody)).status, 200);
+    assert.equal((await client.get("/uploads/" + upload.body.fileName)).status, 200);
+    assert.equal((await call(lawyer, "post", url, { ...body, revision: 1 })).status, 409, "signed notices are immutable");
+    assert.equal(outbound, 1);
+  } finally {
+    global.fetch = before.fetch;
+    for (const [key, value] of [["AI_FEATURES_ENABLED", before.enabled], ["OPENAI_API_KEY", before.key]]) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
+
+test("AI evidence cannot be taken from another matter even when the advocate can read both", async () => {
+  const password = await bcrypt.hash("Testing-password-123", 10);
+  const advocate = await require("../server/src/access").Lawyer.create({ name: "Synthetic evidence-scope advocate", email: "evidence-scope@example.test", password, status: "active" });
+  const actor = request.agent(app);
+  await call(actor, "post", "/api/auth/lawyer/login", { email: advocate.email, password: "Testing-password-123" });
+  const s = await actor.get("/api/session");
+  const upload = await actor.post("/api/file-upload").set("X-CSRF-Token", s.body.csrf).attach("file", Buffer.from("%PDF-1.7\nSynthetic evidence fixture\n%%EOF"), { filename: "other-matter.pdf", contentType: "application/pdf" });
+  const n = await matter("QA-AI-EVIDENCE-TARGET"), source = await matter("QA-AI-EVIDENCE-SOURCE");
+  const Model = require("../server/src/access").ClientNotice;
+  await Model.updateMany({ _id: { $in: [n.id, source.id] } }, { $set: { lawyerId: advocate.id } });
+  await Model.updateOne({ _id: source.id }, { $set: { supportingDocuments: [upload.body.fileName] } });
+  assert.equal((await actor.get("/uploads/" + upload.body.fileName)).status, 200);
+  const response = await call(actor, "post", "/api/ai/matters/" + n.id + "/draft", { consentToAi: true, fileName: upload.body.fileName });
+  assert.equal(response.status, 403); assert.match(response.body.message, /this matter/);
+  assert.equal(await mongoose.models.ai_artifacts.countDocuments({ noticeId: n.noticeId }), 0);
+});
+
 test("missing identity index pauses account changes without altering the database", async () => {
   const Identity = require("../server/src/models/accountIdentity.model");
   await Identity.collection.drop();

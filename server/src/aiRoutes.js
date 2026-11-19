@@ -30,6 +30,11 @@ const Artifact = mongoose.model(
       sourceRevision: Number,
       inputHash: String,
       sourceFile: String,
+      intent: String,
+      instructions: String,
+      appliedRevision: Number,
+      appliedAt: Date,
+      appliedBy: String,
     },
     { timestamps: true },
   ),
@@ -78,6 +83,7 @@ router.get(
     res.json({
       success: true,
       data: await Artifact.find({ noticeId: n.noticeId })
+        .select(req.session.user.role === "client" ? "-instructions" : "")
         .sort({ createdAt: -1 })
         .limit(15),
     });
@@ -89,10 +95,43 @@ router.post(
   a.wrap(async (req, res) => {
     const n = await a.noticeAccess(req, req.params.id),
       kind = req.params.kind;
-    if (!["facts", "draft"].includes(kind))
-      a.fail(400, "Choose facts or draft");
+    if (!["facts", "draft", "revise"].includes(kind))
+      a.fail(400, "Choose facts, a new draft or a draft revision");
     if (n.signedFile)
       a.fail(409, "This matter already has a final signed notice.");
+    let instructions = "",
+      currentDraft = "";
+    if (kind === "revise") {
+      if (req.session.user.role !== "lawyer")
+        a.fail(
+          403,
+          "Only the assigned advocate can request a notice revision.",
+        );
+      if (n.paymentStatus !== "Paid")
+        a.fail(
+          409,
+          "Verified payment is required before revising the saved notice.",
+        );
+      if (req.body.revision !== (n.draftRevision || 0))
+        a.fail(
+          409,
+          "The saved draft changed. Refresh before requesting a revision.",
+        );
+      instructions =
+        typeof req.body.instructions === "string"
+          ? req.body.instructions.trim()
+          : "";
+      if (instructions.length < 10 || instructions.length > 4000)
+        a.fail(400, "Describe the required changes in 10–4,000 characters.");
+      currentDraft = require("./services/exports").plain(n.generatedNotice);
+      if (!currentDraft.trim())
+        a.fail(409, "Save a draft before requesting AI revisions.");
+      if (currentDraft.length > 50000)
+        a.fail(
+          400,
+          "This saved draft exceeds the AI revision limit. Continue in the manual draft editor.",
+        );
+    }
     if (req.body.consentToAi !== true)
       a.fail(
         400,
@@ -103,6 +142,25 @@ router.post(
     if (fileName) {
       if (typeof fileName !== "string" || !(await a.fileAccess(req, fileName)))
         a.fail(404, "Document not found");
+      const matterFiles = [
+        n.supportingDocument,
+        ...(n.supportingDocuments || []),
+      ];
+      if (
+        !matterFiles.includes(fileName) &&
+        !(await a.ClientDocument.exists({
+          noticeId: n.noticeId,
+          $or: [
+            { fileName },
+            { responseFiles: fileName },
+            { "responseHistory.files": fileName },
+          ],
+        }))
+      )
+        a.fail(
+          403,
+          "Attach the selected document to this matter before using it as AI evidence.",
+        );
       text = (
         await extractText(await require("./storage").read(fileName), fileName)
       ).text;
@@ -110,8 +168,10 @@ router.post(
     if (!text.trim()) text = n.caseSummary;
     if (!text?.trim())
       a.fail(400, "Provide source facts or a readable document.");
-    const result = await legal.generate(kind, {
+    const result = await legal.generate(kind === "revise" ? "draft" : kind, {
       text,
+      instructions,
+      currentDraft,
       case: {
         subject: n.subject,
         category: n.category,
@@ -122,28 +182,44 @@ router.post(
         ? req.body.referenceIds
         : [],
     });
-    const artifact = await Artifact.create({
-      noticeId: n.noticeId,
-      kind,
-      draft: result.draft,
-      facts: result.facts,
-      references: (result.references || []).map((r) => r.id),
-      actorId: req.session.user.id,
-      actorRole: req.session.user.role,
-      provider: result.provider,
-      model: result.model,
-      sourceRevision: n.draftRevision || 0,
-      inputHash: crypto.createHash("sha256").update(text).digest("hex"),
-      sourceFile: fileName || "",
+    let artifact;
+    await mongoose.connection.transaction(async (session) => {
+      [artifact] = await Artifact.create(
+        [
+          {
+            noticeId: n.noticeId,
+            kind: kind === "revise" ? "draft" : kind,
+            intent: kind === "revise" ? "revision" : "initial",
+            instructions,
+            draft: result.draft,
+            facts: result.facts,
+            references: (result.references || []).map((r) => r.id),
+            actorId: req.session.user.id,
+            actorRole: req.session.user.role,
+            provider: result.provider,
+            model: result.model,
+            sourceRevision: n.draftRevision || 0,
+            inputHash: crypto
+              .createHash("sha256")
+              .update(JSON.stringify({ text, instructions, currentDraft }))
+              .digest("hex"),
+            sourceFile: fileName || "",
+          },
+        ],
+        { session },
+      );
+      await require("./matterServices").event(
+        req,
+        n,
+        kind === "facts"
+          ? "AI fact proposal prepared"
+          : kind === "revise"
+            ? "AI revision proposal prepared"
+            : "AI draft proposal prepared",
+        "Independent review required; no case content changed.",
+        session,
+      );
     });
-    await require("./matterServices").event(
-      req,
-      n,
-      kind === "facts"
-        ? "AI fact proposal prepared"
-        : "AI draft proposal prepared",
-      "Independent review required; no case content changed.",
-    );
     res.json({
       success: true,
       data: { artifact, reviewRequired: true, warnings: result.warnings || [] },
@@ -169,11 +245,26 @@ router.post(
       );
     if (req.body.reviewed !== true)
       a.fail(400, "Review the proposal before applying it.");
+    const editedDraft = req.body.editedDraft;
+    if (
+      editedDraft !== undefined &&
+      (typeof editedDraft !== "string" ||
+        !editedDraft.trim() ||
+        editedDraft.length > 100000)
+    )
+      a.fail(400, "Enter a non-empty proposal of up to 100,000 characters.");
+    req.aiArtifact = {
+      id: String(artifact._id),
+      edited: editedDraft !== undefined && editedDraft !== artifact.draft,
+    };
     req.params.id = String(n._id);
     const escape = (s) =>
       s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     req.body = {
-      generatedNotice: artifact.draft
+      generatedNotice: (editedDraft === undefined
+        ? artifact.draft
+        : editedDraft.trim()
+      )
         .split(/\n\n+/)
         .map((p) => "<p>" + escape(p).replace(/\n/g, "<br>") + "</p>")
         .join(""),

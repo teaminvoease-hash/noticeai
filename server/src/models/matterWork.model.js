@@ -39,6 +39,7 @@ const versionSchema = new Schema(
     actorRole: String,
     actorId: String,
     label: String,
+    aiArtifactId: String,
   },
   { timestamps: true },
 );

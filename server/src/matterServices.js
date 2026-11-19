@@ -9,11 +9,32 @@ const docState = (d) =>
       ? "Uploaded"
       : "Requested";
 const event = async (req, notice, label, detail = "", session) => {
-  const records = await MatterEvent.create([{ noticeId: notice.noticeId, actorId: req.session.user.id,
-    actorRole: req.session.user.role, label, detail }], session ? { session } : {});
-  if (["admin", "lawyer"].includes(req.session.user.role) && label !== "Client handoff update")
-    await require("./services/clientUpdates").notifyClient(notice, label + (detail ? ": " + detail : ""), session,
-      /signed/i.test(label) ? "signed" : /document/i.test(label) ? "documents" : "timeline");
+  const records = await MatterEvent.create(
+    [
+      {
+        noticeId: notice.noticeId,
+        actorId: req.session.user.id,
+        actorRole: req.session.user.role,
+        label,
+        detail,
+      },
+    ],
+    session ? { session } : {},
+  );
+  if (
+    ["admin", "lawyer"].includes(req.session.user.role) &&
+    label !== "Client handoff update"
+  )
+    await require("./services/clientUpdates").notifyClient(
+      notice,
+      label + (detail ? ": " + detail : ""),
+      session,
+      /signed/i.test(label)
+        ? "signed"
+        : /document/i.test(label)
+          ? "documents"
+          : "timeline",
+    );
   return records;
 };
 // Every document mutation writes the parent matter in the same transaction.
@@ -92,11 +113,28 @@ async function saveDraft(req, res) {
           content,
           actorId: req.session.user.id,
           actorRole: req.session.user.role,
-          label: "Professional draft saved",
+          label: req.aiArtifact
+            ? req.aiArtifact.edited
+              ? "Advocate-edited AI proposal saved"
+              : "AI proposal reviewed and saved"
+            : "Professional draft saved",
+          ...(req.aiArtifact ? { aiArtifactId: req.aiArtifact.id } : {}),
         },
       ],
       { session },
     );
+    if (req.aiArtifact)
+      await mongoose.models.ai_artifacts.updateOne(
+        { _id: req.aiArtifact.id },
+        {
+          $set: {
+            appliedRevision: revision + 1,
+            appliedAt: new Date(),
+            appliedBy: req.session.user.id,
+          },
+        },
+        { session },
+      );
     await event(
       req,
       n,
@@ -422,7 +460,13 @@ async function signNotice(req, res) {
       { new: true, session },
     );
     if (!data) a.fail(409, "The matter changed. Refresh before uploading.");
-    await event(req, data, "Final signed PDF uploaded", "Your advocate has uploaded the final signed PDF. You can download it from your matter.", session);
+    await event(
+      req,
+      data,
+      "Final signed PDF uploaded",
+      "Your advocate has uploaded the final signed PDF. You can download it from your matter.",
+      session,
+    );
   });
   res.json({ success: true, data });
 }

@@ -104,6 +104,18 @@ test("AI requires configuration, validates proposals and excludes invented sourc
     assert.deepEqual(r.facts.sourceQuotes, ["Actual evidence"]);
     assert.equal(r.reviewRequired, true);
     assert.equal(calls, 1);
+    let revisionInput;
+    await generate("draft", { text: "Actual evidence", currentDraft: "Current saved notice", instructions: "Clarify the remedy without inventing a deadline." }, {
+      fetcher: async (_url, options) => {
+        revisionInput = JSON.parse(JSON.parse(options.body).input[1].content[0].text);
+        return { ok: true, json: async () => ({ output_text: "Revised notice for review." }) };
+      },
+    });
+    assert.equal(revisionInput.currentDraft, "Current saved notice");
+    assert.match(revisionInput.revisionInstructions, /Clarify the remedy/);
+    for (const invalid of [null, { output_text: { invalid: true }, output: {} }])
+      await assert.rejects(() => generate("draft", { text: "Actual evidence" }, { fetcher: async () => ({ ok: true, json: async () => invalid }) }), e => e.status === 502);
+    await assert.rejects(() => generate("draft", { text: "Actual evidence" }, { fetcher: async () => ({ ok: true, json: async () => { throw new SyntaxError("Synthetic invalid JSON"); } }) }), e => e.status === 502);
     await assert.rejects(
       () =>
         generate(
