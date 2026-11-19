@@ -664,6 +664,7 @@ export default function MatterPage() {
               ].filter(Boolean)}
               caseSummary={n.caseSummary}
               hasDraft={!!n.generatedNotice?.trim()}
+              editingDraft={editing || editFacts}
               onApplied={load}
               onAdoptFacts={
                 isClient && n.paymentStatus !== "Paid" && !n.lawyerId

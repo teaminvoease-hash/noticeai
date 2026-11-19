@@ -289,8 +289,10 @@ export default function Dashboard({ role }: { role: Role }) {
                       </span>
                       <span className="min-w-0 flex-1">
                         <strong>{n.subject}</strong>
-                        <small>{n.workflow.nextAction}</small>
-                        <small>
+                        <small className="block leading-6">
+                          {n.workflow.nextAction}
+                        </small>
+                        <small className="block leading-6">
                           {n.workflow.nextUpdateAt
                             ? "Next update: " +
                               new Date(n.workflow.nextUpdateAt).toLocaleString(
@@ -452,8 +454,10 @@ export default function Dashboard({ role }: { role: Role }) {
                     <div className="dashboard-matter-name">
                       <span>{n.noticeId}</span>
                       <strong>{n.subject}</strong>
-                      <small>{n.workflow.nextAction}</small>
-                      <small>
+                      <small className="block leading-6">
+                        {n.workflow.nextAction}
+                      </small>
+                      <small className="block leading-6">
                         {n.workflow.nextUpdateAt
                           ? "Next update: " +
                             new Date(n.workflow.nextUpdateAt).toLocaleString(
@@ -463,7 +467,11 @@ export default function Dashboard({ role }: { role: Role }) {
                             " IST"
                           : "Next update not yet scheduled"}
                       </small>
-                      {role !== "client" && <small>{n.clientName}</small>}
+                      {role !== "client" && (
+                        <small className="block leading-6">
+                          {n.clientName}
+                        </small>
+                      )}
                     </div>
                     <Badge
                       className={

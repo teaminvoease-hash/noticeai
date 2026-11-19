@@ -44,6 +44,8 @@ interface Artifact {
   createdAt: string;
   sourceRevision: number;
   sourceFile?: string;
+  intent?: "initial" | "revision";
+  appliedRevision?: number;
 }
 interface Props {
   matterId: string;
@@ -54,6 +56,7 @@ interface Props {
   files: string[];
   caseSummary?: string;
   hasDraft: boolean;
+  editingDraft?: boolean;
   onApplied: () => Promise<unknown>;
   onAdoptFacts?: (text: string) => void;
 }
@@ -66,6 +69,7 @@ export default function AiWorkspace({
   files,
   caseSummary = "",
   hasDraft,
+  editingDraft = false,
   onApplied,
   onAdoptFacts,
 }: Props) {
@@ -77,6 +81,8 @@ export default function AiWorkspace({
     [references, setReferences] = useState<string[]>([]),
     [active, setActive] = useState<Artifact | null>(null),
     [reviewed, setReviewed] = useState(false),
+    [instructions, setInstructions] = useState(""),
+    [editedDraft, setEditedDraft] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
@@ -112,6 +118,7 @@ export default function AiWorkspace({
   function choose(artifact: Artifact) {
     setActive(artifact);
     setReviewed(false);
+    setEditedDraft(artifact.draft || "");
   }
   return (
     <Card className="ai-workspace my-6">
@@ -235,6 +242,16 @@ export default function AiWorkspace({
           </div>
           <div>
             <h3 className="text-sm font-semibold">AI preparation</h3>
+            {editingDraft && <p role="status" className="my-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-7">Save or cancel your current manual edits before generating or applying an AI draft proposal.</p>}
+            {role === "lawyer" && !signedFile && (
+              <p className="mt-2 text-xs leading-6 text-muted-foreground">
+                You can also{" "}
+                <a href="#draft" className="font-medium text-primary underline">
+                  edit the saved notice manually
+                </a>
+                . AI availability does not prevent manual drafting and vetting.
+              </p>
+            )}
             {!status?.aiEnabled ? (
               <p className="mt-3 rounded-lg border border-dashed p-4 text-xs leading-6 text-muted-foreground">
                 External AI processing is disabled or unconfigured in this
@@ -305,12 +322,60 @@ export default function AiWorkspace({
                     </label>
                   ))}
                 </details>
+                {role === "lawyer" && hasDraft && !signedFile && (
+                  <div className="my-4 rounded-lg border border-primary/20 bg-muted/40 p-4">
+                    <label
+                      htmlFor={"ai-revision-" + matterId}
+                      className="block text-sm font-semibold"
+                    >
+                      What should AI change in this notice?
+                    </label>
+                    <textarea
+                      id={"ai-revision-" + matterId}
+                      value={instructions}
+                      maxLength={4000}
+                      rows={4}
+                      disabled={busy}
+                      className="mt-3 w-full rounded-lg border border-input bg-background p-3 text-sm leading-7"
+                      placeholder="For example: clarify the requested remedy using the uploaded correspondence. Preserve the verified facts."
+                      onChange={(e) => setInstructions(e.target.value)}
+                    />
+                    <p className="mt-2 text-xs leading-6 text-muted-foreground">
+                      Uses saved draft revision {revision}, the selected source
+                      and your instructions. Save manual edits first. The result
+                      remains a proposal until you review and apply it.
+                    </p>
+                    {paymentStatus !== "Paid" && (
+                      <p className="mt-2 text-xs">
+                        Verified payment is required for draft revisions.
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2">
-                  {(["facts", "draft"] as const).map((kind) => (
+                  {(
+                    [
+                      "facts",
+                      "draft",
+                      ...(role === "lawyer" && hasDraft ? ["revise"] : []),
+                    ] as ("facts" | "draft" | "revise")[]
+                  ).map((kind) => (
                     <Button
                       key={kind}
-                      variant={kind === "facts" ? "outline" : "default"}
-                      disabled={busy || !consent || !!signedFile}
+                      variant={
+                        kind === "revise" || (kind === "draft" && !hasDraft)
+                          ? "default"
+                          : "outline"
+                      }
+                      disabled={
+                        busy ||
+                        !consent ||
+                        (editingDraft && kind !== "facts") ||
+                        !!signedFile ||
+                        (kind === "revise" &&
+                          (paymentStatus !== "Paid" ||
+                            instructions.trim().length < 10))
+                      }
                       onClick={() =>
                         run(async () => {
                           const result = await api<{ artifact: Artifact }>(
@@ -321,6 +386,9 @@ export default function AiWorkspace({
                               text: extraction?.text || caseSummary,
                               referenceIds: references,
                               consentToAi: consent,
+                              ...(kind === "revise"
+                                ? { instructions, revision }
+                                : {}),
                             },
                           );
                           choose(result.artifact);
@@ -332,9 +400,11 @@ export default function AiWorkspace({
                       }
                     >
                       <Sparkle />
-                      {kind === "facts"
-                        ? "Propose extracted facts"
-                        : "Prepare notice proposal"}
+                      {kind === "revise"
+                        ? "Propose changes to saved notice"
+                        : kind === "facts"
+                          ? "Propose extracted facts"
+                          : "Prepare notice proposal"}
                     </Button>
                   ))}
                 </div>
@@ -397,8 +467,15 @@ export default function AiWorkspace({
                   size="sm"
                   onClick={() => choose(a)}
                 >
-                  {a.kind === "facts" ? "Facts" : "Draft"} ·{" "}
-                  {new Date(a.createdAt).toLocaleDateString("en-IN")}
+                  {a.kind === "facts"
+                    ? "Facts"
+                    : a.intent === "revision"
+                      ? "Revision"
+                      : "Draft"}
+                  {a.appliedRevision != null
+                    ? ` · Applied v${a.appliedRevision}`
+                    : ""}{" "}
+                  · {new Date(a.createdAt).toLocaleDateString("en-IN")}
                 </Button>
               ))}
             </div>
@@ -412,13 +489,17 @@ export default function AiWorkspace({
                   ? "Fact proposal"
                   : "Notice draft proposal"}
               </h3>
-              <Badge>Unapplied · Review required</Badge>
+              <Badge>
+                {active.appliedRevision != null
+                  ? `Applied to revision ${active.appliedRevision}`
+                  : "Unapplied · Review required"}
+              </Badge>
             </div>
             <p className="my-3 text-xs text-muted-foreground">
               {active.provider} / {active.model} · Based on draft revision{" "}
               {active.sourceRevision}
             </p>
-            {active.facts ? (
+            {active.kind === "facts" && active.facts ? (
               <>
                 <p className="whitespace-pre-wrap text-sm leading-7">
                   {active.facts.summary}
@@ -456,10 +537,51 @@ export default function AiWorkspace({
               </>
             ) : (
               <>
-                <pre className="whitespace-pre-wrap break-words rounded-md bg-slate-50 p-4 font-serif text-sm leading-8">
-                  {active.draft}
-                </pre>
-                {role === "lawyer" && (
+                {role === "lawyer" && active.appliedRevision == null ? (
+                  <>
+                    <label
+                      htmlFor="ai-proposal-editor"
+                      className="mb-2 block text-sm font-semibold"
+                    >
+                      Review and edit the proposed notice
+                    </label>
+                    <p className="mb-3 text-xs leading-6 text-muted-foreground">
+                      Your edits are saved only when you save the reviewed
+                      proposal as a new draft version.
+                    </p>
+                    <textarea
+                      id="ai-proposal-editor"
+                      className="w-full rounded-lg border border-input bg-background p-4 font-serif text-sm leading-8"
+                      rows={14}
+                      maxLength={100000}
+                      value={editedDraft}
+                      disabled={busy}
+                      onChange={(e) => {
+                        setEditedDraft(e.target.value);
+                        setReviewed(false);
+                      }}
+                    />
+                    <details className="my-3 text-sm">
+                      <summary>Compare with original AI proposal</summary>
+                      <pre className="mt-3 whitespace-pre-wrap break-words rounded-md bg-muted p-4 leading-7">
+                        {active.draft}
+                      </pre>
+                    </details>
+                  </>
+                ) : (
+                  <pre className="whitespace-pre-wrap break-words rounded-md bg-slate-50 p-4 font-serif text-sm leading-8">
+                    {active.draft}
+                  </pre>
+                )}
+                {active.appliedRevision != null && (
+                  <p className="my-3 text-sm">
+                    This original AI proposal was used for saved revision{" "}
+                    {active.appliedRevision}. The saved draft and version
+                    history include any advocate edits. Changes require fresh
+                    professional vetting.
+                  </p>
+                )}
+                {role === "lawyer" && active.appliedRevision == null && (
                   <>
                     <label className="my-4 flex items-start gap-3 text-xs leading-6">
                       <input
@@ -476,26 +598,39 @@ export default function AiWorkspace({
                       disabled={
                         busy ||
                         !reviewed ||
+                        editingDraft ||
+                        !editedDraft.trim() ||
                         paymentStatus !== "Paid" ||
                         !!signedFile ||
                         revision !== active.sourceRevision
                       }
                       onClick={() =>
                         run(async () => {
-                          await api(
+                          const saved = await api<{ draftRevision: number }>(
                             "/api/ai/artifacts/" + active._id + "/apply",
                             "POST",
-                            { reviewed: true },
+                            { reviewed: true, editedDraft },
                           );
-                          await onApplied();
-                          setMessage(
-                            "Applied as a new draft version. Professional review approval is still required.",
-                          );
+                          setActive({
+                            ...active,
+                            appliedRevision: saved.draftRevision,
+                          });
                           setReviewed(false);
+                          setMessage(
+                            "Saved as a new draft version. Fresh professional vetting is required before signing.",
+                          );
+                          try {
+                            await onApplied();
+                            await refresh();
+                          } catch {
+                            setError(
+                              "The draft was saved, but the latest view could not refresh. Reload this matter before your next action.",
+                            );
+                          }
                         })
                       }
                     >
-                      Apply as a new draft version
+                      Save reviewed proposal as new draft
                     </Button>
                     {revision !== active.sourceRevision && (
                       <p className="mt-2 text-xs text-amber-800">
