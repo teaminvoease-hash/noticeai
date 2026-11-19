@@ -1,3 +1,4 @@
+import ProfessionalNotice from '../../../components/platform/ProfessionalNotice';
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { END_POINT, METHODS } from "../../../helper/helper";
@@ -59,8 +60,9 @@ const AdminLogin = () => {
           <Link className="back-link" to="/">Back</Link>
           <p className="auth-tag">Admin Control Portal</p>
           <h1 className="auth-title">Admin Login</h1>
-          <p className="auth-subtitle">Login to manage advocates, pricing, commissions, and platform configuration.</p>
+          <p className="auth-subtitle">Login to manage credential checks, matter operations and platform configuration.</p>
 
+          <ProfessionalNotice/>
           <form className="auth-form" onSubmit={handleSubmit}>
             <label htmlFor="admin-email">Admin Email</label>
             <input

@@ -1,3 +1,4 @@
+import noticeCategories from './data/categories.json';
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import ClientLayout from "./AdminDashboard/dashscreen/eraser/ClientPortalLayout";
@@ -23,6 +24,8 @@ export default function GuidedRequest() {
     location = useLocation(),
     id = new URLSearchParams(location.search).get("draft"),
     edit = new URLSearchParams(location.search).get("edit");
+  const requestedCategory = new URLSearchParams(location.search).get("category");
+  const selectedCategory = Object.values(noticeCategories).flat().includes(requestedCategory) ? requestedCategory : "";
   const [list, setList] = useState(null),
     [draft, setDraft] = useState(null),
     [form, setForm] = useState(initial),
@@ -279,6 +282,9 @@ export default function GuidedRequest() {
     setError("");
     try {
       const d = await request("/api/intake-drafts", "POST");
+      if (selectedCategory) await request("/api/intake-drafts/" + d._id, "PUT", {
+        revision: d.revision, fields: {...initial, category: selectedCategory}, step: 0
+      });
       navigate("?draft=" + d._id);
     } catch (e) {
       setError(e.message);
@@ -347,7 +353,7 @@ export default function GuidedRequest() {
         "POST",
         { revision: revision.current },
       );
-      navigate("/matters/" + result._id, { replace: true });
+      navigate("/matters/" + result._id + "#payment", { replace: true });
     } catch (e) {
       setError(e.message);
     } finally {
@@ -404,6 +410,7 @@ export default function GuidedRequest() {
       {!id ? (
         <section className="form-panel">
           <h2>Start or resume a request</h2>
+          {selectedCategory && <p role="status"><strong>Selected notice type:</strong> {selectedCategory}. A new request will start with this category; existing saved requests stay unchanged.</p>}
           <p>
             A saved request is private to you. It becomes a matter for the team
             after submission.
@@ -470,6 +477,7 @@ export default function GuidedRequest() {
               Save and close
             </button>
           </div>
+          <p>Choose a notice type and attach your records, complete the recipient and facts, then review your request and payment. After payment verification, administration assigns an advocate for mandatory vetting, finalization and signed-copy upload. You will receive in-app progress updates.</p>
           <ol className="request-steps" aria-label="Request progress">
             {steps.map((title, i) => (
               <li key={title} aria-current={step === i ? "step" : undefined}>
@@ -522,7 +530,7 @@ export default function GuidedRequest() {
                       }
                       onChange={(e) => change("category", e.target.value)}
                     >
-                      <option value="">Choose a matter type</option>
+                      <option value="">Choose a matter type</option>{Object.entries(noticeCategories).map(([group,items])=><optgroup key={group} label={group}>{items.map(item=><option key={item} value={item}>{item}</option>)}</optgroup>)}
                       {[
                         ["Financial", "Payments, invoices or refunds"],
                         ["Contract", "Contracts, vendors or services"],
@@ -547,6 +555,7 @@ export default function GuidedRequest() {
                     )}
                   </>
                 )}
+                {step === 0 && <details className="my-4"><summary>Attach documents now (optional)</summary><label htmlFor="request-early-files">Supporting records, up to five files and 10 MB each</label><input id="request-early-files" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" disabled={uploading || busy} onChange={upload}/><p>{form.supportingDocuments.length} documents attached. You can review and change them in the Documents step.</p></details>}
                 {step === 1 && (
                   <>
                     <label htmlFor="request-defaulterId">

@@ -1,0 +1,185 @@
+Skip to workspace content
+ResolveX
+NOTICE INTELLIGENCE
+S
+Advocate workspace
+Secure matter management
+
+WORKSPACE
+
+Overview
+Assigned matters
+Request documents
+Document responses
+Signed notices
+Wallet
+Withdrawals
+Professional profile
+Private records.
+Professional review.
+Advocate workspace
+/
+QA-COURIER-BROWSER
+Search matters
+⌘ K
+SL
+STAGING WORKSPACE · Use synthetic test data only · Live payments and outbound email are disabled.
+
+RESOLVEX WORKSPACE
+
+Advocate
+QA-COURIER-BROWSER
+
+Synthetic advocate AI revision audit
+
+Dashboard
+Skip to matter details
+
+ONE MATTER · ONE RECORD
+
+Synthetic advocate AI revision audit
+
+Upload final signed notice · Next action: assigned advocate
+
+Client
+Synthetic client
+Recipient
+Recipient
+
+Category
+Contract
+Assigned advocate
+Synthetic lawyer
+Created
+19/11/2026, 12:27:13 pm IST
+Next steps
+Mandatory advocate review
+Facts
+Authority
+Documents
+Draft & versions
+Payment
+Signed notice & delivery
+Timeline
+Advocate vetting is mandatory. Every notice must be checked by the assigned advocate, who must make necessary corrections and updates before approval, signature and issuance. AI output and administrator checks do not replace this review. Professional boundaries and review policy
+What happens next
+Current step
+Upload final signed notice
+Responsible now
+You
+Next update expected
+Not yet scheduled
+Last matter update
+19 Nov 2026, 12:27 pm IST
+
+The assigned advocate must upload the actual signed notice PDF.
+
+The team can then record real dispatch and delivery information.
+
+Go to your next step
+Record an update for the client
+Request facts
+
+Synthetic facts: goods were not delivered under the supplied contract. The client requests performance or refund.
+
+Authority letter
+
+Approved by administrator
+
+View authority letter ↗
+Supporting documents and requests
+
+Requested → Uploaded → Reviewed, or Corrections needed → a new client upload.
+
+Request a document from the client
+
+No additional documents have been requested.
+
+Document intelligence
+AI provider configured
+
+Extract source text, review facts and prepare an advocate-reviewed proposal. No extracted content replaces the matter automatically.
+
+Source document
+Use the matter’s recorded facts
+
+Text PDFs and DOCX are supported, up to 10 MB and 50 PDF pages. Scanned pages require manual transcription; OCR is not configured.
+
+Extract text locally
+A human remains in control
+
+Extraction can miss context. AI proposals can contain errors. Verify evidence, applicable law, deadlines, jurisdiction and relief before approval or signature.
+
+AI preparation
+
+Selected matter facts and case context will be sent to OpenAI. Do not include unrelated personal or privileged material.
+
+I authorise sending this selected content to the configured AI provider for this request.
+Candidate legal provisions — advocate verification required
+Propose extracted facts
+Prepare notice proposal
+Working-copy exports
+
+Exports use the current saved matter draft, not an unapplied AI proposal. They are marked unsigned and require independent review.
+
+PDF working copy
+Editable DOCX
+Advocate assignment
+
+Synthetic lawyer
+
+Notice draft and versions
+
+This is preliminary content until professional review. Current saved revision: 0.
+
+Synthetic signed draft for QA.
+
+Edit draft
+Mandatory advocate vetting, checking and updates
+
+Every notice must be vetted and checked by the assigned advocate, who must make necessary corrections and updates before approval, signature and issuance. AI or administrator checks do not replace professional review.
+
+Credential checks: Recorded by the platform administrator. Synthetic QA Council · Enrolment QA-ONLY. This is not BCI certification or an automated verification against a Bar Council register.
+
+Assigned advocate approval recorded for revision 0.
+
+Synthetic QA supplied instructions and evidence checked.
+
+Corrections/updates: Synthetic QA necessary corrections and updates checked.
+
+Reopen review for corrections or route changes
+Saved draft versions
+
+Version history starts with the next saved draft edit. Earlier versions are not reconstructed.
+
+Payment
+
+Status: Paid
+
+No payment records for this matter.
+
+Final signed notice and delivery
+
+A final signed PDF becomes available after payment and professional review.
+
+Final signed PDF
+Upload final signed notice
+Courier receipt and delivery
+Courier
+Not recorded
+Tracking reference
+Not dispatched
+Dispatch date
+Not recorded
+Delivery status
+Not dispatched
+Activity timeline
+
+Recorded activity from this update onward. Older actions are not reconstructed; current payment and delivery records appear in their sections above.
+
+Request created
+
+19/11/2026, 12:27:13 pm IST
+
+ResolveX by CredEnd
+Technology-assisted preparation · Independent professional judgment

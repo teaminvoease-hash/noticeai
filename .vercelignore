@@ -1,0 +1,11 @@
+.git
+.env
+.env.*
+*.zip
+attachments
+node_modules
+.cache
+/data
+docs
+!client/src/data/
+!client/src/data/**

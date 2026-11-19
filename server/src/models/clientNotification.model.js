@@ -7,6 +7,8 @@ const clientNotificationSchema = new Schema(
     notificationId: { type: String, required: true, unique: true },
     channel: { type: String, required: true },
     noticeId: { type: String },
+    matterId: String,
+    section: String,
     message: { type: String, required: true },
     status: { type: String, default: "Unread" },
   },

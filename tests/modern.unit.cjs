@@ -1,0 +1,148 @@
+const { test } = require("node:test"),
+  assert = require("node:assert/strict");
+const {
+  assertIsolation,
+  assertTestDatabase,
+} = require("../server/src/config/isolation");
+test("staging rejects production origins, wrong databases, shared cookies and live payments", () => {
+  const good = {
+    APP_ENV: "staging",
+    MONGODB_URI: "mongodb://localhost:27120/noticeai_staging",
+    SESSION_COOKIE_NAME: "resolvex.staging.sid",
+    APP_ORIGIN: "http://localhost:6080",
+  };
+  assert.doesNotThrow(() => assertIsolation(good));
+  for (const override of [
+    { MONGODB_URI: "mongodb://localhost/noticeai" },
+    { APP_ORIGIN: "https://mynotice.credend.in" },
+    { APP_ORIGIN: "https://noticeai-eod8.onrender.com" },
+    { SESSION_COOKIE_NAME: "notice.sid" },
+    { PAYU_IS_LIVE: "true" },
+  ])
+    assert.throws(() => assertIsolation({ ...good, ...override }));
+});
+test("integration cleanup cannot target a production database", () => {
+  assert.doesNotThrow(() =>
+    assertTestDatabase(
+      "mongodb://127.0.0.1:27018/noticeai_integration_test?replicaSet=rs0",
+    ),
+  );
+  for (const uri of [
+    "mongodb+srv://cluster.example/noticeai_test",
+    "mongodb://127.0.0.1/noticeai",
+    "mongodb://prod.example/noticeai_test",
+  ])
+    assert.throws(() => assertTestDatabase(uri));
+});
+test("PDF and DOCX working copies round-trip through real text extraction", async () => {
+  const { exportNotice, label } = require("../server/src/services/exports"),
+    { extractText } = require("../server/src/services/documentText");
+  const notice = {
+    noticeId: "TEST-EXPORT",
+    subject: "Example contractual matter",
+    generatedNotice:
+      "<p>Example facts for professional review.</p><p>नमस्ते</p>",
+    draftRevision: 3,
+  };
+  for (const format of ["pdf", "docx"]) {
+    const result = await exportNotice(notice, format);
+    assert.ok(result.buffer.length > 500);
+    const extracted = await extractText(result.buffer, "working." + format);
+    assert.ok(extracted.text.includes("Example facts for professional review"));
+    assert.ok(extracted.text.includes("UNSIGNED WORKING COPY"));
+    assert.ok(extracted.text.includes("नमस्ते"));
+    assert.equal(extracted.method, "local-text-extraction");
+  }
+});
+test("unsupported or unreadable documents fail explicitly", async () => {
+  const { extractText } = require("../server/src/services/documentText");
+  await assert.rejects(
+    () => extractText(Buffer.from("not an image"), "scan.png"),
+    (e) => e.status === 415,
+  );
+  await assert.rejects(
+    () => extractText(Buffer.from("broken"), "bad.docx"),
+    (e) => e.status === 422,
+  );
+});
+test("AI requires configuration, validates proposals and excludes invented source quotations", async () => {
+  const { generate } = require("../server/src/services/legalAi");
+  const before = {
+    enabled: process.env.AI_FEATURES_ENABLED,
+    key: process.env.OPENAI_API_KEY,
+  };
+  try {
+    process.env.AI_FEATURES_ENABLED = "false";
+    await assert.rejects(
+      () => generate("facts", { text: "Evidence" }),
+      (e) => e.status === 503,
+    );
+    process.env.AI_FEATURES_ENABLED = "true";
+    process.env.OPENAI_API_KEY = "isolated-test-key";
+    const facts = {
+      summary: "A supplied fact.",
+      parties: [],
+      dates: [],
+      amounts: [],
+      obligations: [],
+      missingInformation: ["Agreement date missing"],
+      sourceQuotes: ["Actual evidence", "Invented quote"],
+    };
+    let calls = 0;
+    const fetcher = async (url, options) => {
+      calls++;
+      assert.equal(url, "https://api.openai.com/v1/responses");
+      assert.ok(
+        JSON.parse(options.body).input[0].content[0].text.includes("untrusted"),
+      );
+      return {
+        ok: true,
+        json: async () => ({ output_text: JSON.stringify(facts) }),
+      };
+    };
+    const r = await generate("facts", { text: "Actual evidence" }, { fetcher });
+    assert.deepEqual(r.facts.sourceQuotes, ["Actual evidence"]);
+    assert.equal(r.reviewRequired, true);
+    assert.equal(calls, 1);
+    let revisionInput;
+    await generate("draft", { text: "Actual evidence", currentDraft: "Current saved notice", instructions: "Clarify the remedy without inventing a deadline." }, {
+      fetcher: async (_url, options) => {
+        revisionInput = JSON.parse(JSON.parse(options.body).input[1].content[0].text);
+        return { ok: true, json: async () => ({ output_text: "Revised notice for review." }) };
+      },
+    });
+    assert.equal(revisionInput.currentDraft, "Current saved notice");
+    assert.match(revisionInput.revisionInstructions, /Clarify the remedy/);
+    for (const invalid of [null, { output_text: { invalid: true }, output: {} }])
+      await assert.rejects(() => generate("draft", { text: "Actual evidence" }, { fetcher: async () => ({ ok: true, json: async () => invalid }) }), e => e.status === 502);
+    await assert.rejects(() => generate("draft", { text: "Actual evidence" }, { fetcher: async () => ({ ok: true, json: async () => { throw new SyntaxError("Synthetic invalid JSON"); } }) }), e => e.status === 502);
+    await assert.rejects(
+      () =>
+        generate(
+          "facts",
+          { text: "x" },
+          {
+            fetcher: async () => ({
+              ok: true,
+              json: async () => ({ output_text: "not json" }),
+            }),
+          },
+        ),
+      (e) => e.status === 502,
+    );
+    await assert.rejects(
+      () =>
+        generate(
+          "draft",
+          { text: "x", referenceIds: ["invented-law"] },
+          { fetcher },
+        ),
+      (e) => e.status === 400,
+    );
+  } finally {
+    if (before.enabled === undefined) delete process.env.AI_FEATURES_ENABLED;
+    else process.env.AI_FEATURES_ENABLED = before.enabled;
+    if (before.key === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = before.key;
+  }
+});

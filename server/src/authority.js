@@ -11,8 +11,9 @@ router.post('/:id',wrap(async(req,res)=>{
   const field=action==='template'?'authorityTemplate':'authorityLetter';const name=req.body[field];
   if(typeof name!=='string'||!name.endsWith('.pdf'))fail(400,'Upload a signed PDF or letter PDF');
   req.body={[field]:name};await checkFiles(req);
+  if(action==='submit'&&name===c.authorityLetter&&['pending','approved'].includes(c.authorityStatus)){const data=c.toObject();delete data.password;return res.json({success:true,data,message:c.authorityStatus==='approved'?'This signed letter is already approved.':'This signed letter is already awaiting review.'});}
   const update=action==='template'?{authorityTemplate:name}:{authorityLetter:name,authorityStatus:'pending',authorityFeedback:'',authoritySubmittedAt:new Date(),authorityReviewedAt:null,authorityReviewedBy:''};
-  const data=await Client.findByIdAndUpdate(c._id,{$set:update},{new:true}).select('-password');return res.json({success:true,data,message:action==='template'?'Letter ready for the client to download and sign.':'Signed letter saved and submitted for admin review.'});
+  const data=await Client.findOneAndUpdate({_id:c._id,updatedAt:c.updatedAt},{$set:update},{new:true}).select('-password');if(!data)fail(409,'The authority record changed. Refresh before submitting.');return res.json({success:true,data,message:action==='template'?'Letter ready for the client to download and sign.':'Signed letter saved and submitted for admin review.'});
  }
  if(!['approve','changes'].includes(action))fail(400,'Invalid action');
  if(!expectedFile||expectedFile!==c.authorityLetter)fail(409,'The signed letter changed. Refresh and review the latest file.');

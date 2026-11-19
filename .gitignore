@@ -8,3 +8,11 @@ data/
 *.zip
 *.log
 .DS_Store
+
+!.env.staging.example
+
+!client/src/data/
+!client/src/data/categories.json
+!client/src/data/policies.json
+
+/server/generated/

@@ -1,3 +1,9 @@
+import { useClientUpdates } from "./lib/notifications";
+import DeliveryPanel from "./components/platform/DeliveryPanel";
+import ProfessionalNotice from "./components/platform/ProfessionalNotice";
+import HandoffPanel from "./components/platform/HandoffPanel";
+import VettingPanel from "./components/platform/VettingPanel";
+const AiWorkspace = lazy(() => import("./components/platform/AiWorkspace"));
 import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -9,10 +15,14 @@ import { AuthorityPanel } from "./Authority";
 import { fetchData, FileUpload } from "./helper/ApiCall";
 import "react-quill/dist/quill.snow.css";
 const Editor = lazy(() => import("react-quill"));
-const dates = (v) => (v ? new Date(v).toLocaleString("en-IN") : "Not recorded");
+const dates = (v) =>
+  v
+    ? new Date(v).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) + " IST"
+    : "Not recorded";
 function FileLink({ file, children }) {
   return file ? (
     <a
+      className="font-medium text-primary underline underline-offset-4"
       href={"/uploads/" + encodeURIComponent(file)}
       target="_blank"
       rel="noreferrer"
@@ -49,17 +59,13 @@ export default function MatterPage() {
     [notes, setNotes] = useState({}),
     [corrections, setCorrections] = useState({}),
     [signed, setSigned] = useState(null),
-    [delivery, setDelivery] = useState({
-      courier: "",
-      trackingId: "",
-      dispatchDate: "",
-      deliveryStatus: "In Transit",
-    }),
-    [proof, setProof] = useState(null),
     [editFacts, setEditFacts] = useState(false),
     [facts, setFacts] = useState({ subject: "", caseSummary: "" }),
     [loadingMore, setLoadingMore] = useState(false),
     [reconciliations, setReconciliations] = useState({});
+  const updates = useClientUpdates(role === "client");
+  const latestClientUpdate = updates.items.find(item => item.matterId === id)?._id;
+  const handledUpdate = useRef(null);
   const title = useRef(null),
     docInputs = useRef({}),
     mounted = useRef(true);
@@ -83,16 +89,6 @@ export default function MatterPage() {
       subject: result.notice.subject,
       caseSummary: result.notice.caseSummary || "",
     });
-    setDelivery({
-      courier: result.notice.courier || "",
-      trackingId: result.notice.trackingId || "",
-      dispatchDate: result.notice.dispatchDate || "",
-      deliveryStatus:
-        result.notice.deliveryStatus &&
-        result.notice.deliveryStatus !== "Not dispatched"
-          ? result.notice.deliveryStatus
-          : "In Transit",
-    });
     return result;
   }
   useEffect(() => {
@@ -102,6 +98,7 @@ export default function MatterPage() {
     setEditing(false);
     setEditFacts(false);
     setVersion(null);
+    setSigned(null);
     load()
       .then(() => title.current?.focus())
       .catch((e) => setError(e.message));
@@ -113,6 +110,11 @@ export default function MatterPage() {
       mounted.current = false;
     };
   }, [id, role]);
+  useEffect(() => {
+    if (role !== 'client' || !data || !latestClientUpdate || handledUpdate.current === latestClientUpdate || busy || editing || editFacts) return;
+    handledUpdate.current = latestClientUpdate;
+    load().catch(e => setError(e.message));
+  }, [latestClientUpdate, busy, editing, editFacts, !!data, id, role]);
   useEffect(() => {
     if (version) document.getElementById("version-preview")?.focus();
   }, [version]);
@@ -254,9 +256,9 @@ export default function MatterPage() {
   const n = data?.notice,
     isClient = role === "client",
     isReviewer = ["admin", "lawyer"].includes(role),
-    reviewed = ["approved", "verified"].includes(
-      String(n?.status).toLowerCase(),
-    ),
+    reviewed =
+      !!n?.professionalReview &&
+      ["approved", "verified"].includes(String(n?.status).toLowerCase()),
     frozen = !!n?.signedFile;
   return (
     <Layout
@@ -313,9 +315,11 @@ export default function MatterPage() {
               <strong>{data.workflow.label}</strong> ·{" "}
               {data.workflow.owner
                 ? "Next action: " +
-                  (data.workflow.owner === "lawyer"
-                    ? "advocate"
-                    : data.workflow.owner)
+                  ({
+                    lawyer: "assigned advocate",
+                    admin: "administration",
+                    client: "client",
+                  }[data.workflow.owner] || data.workflow.owner)
                 : "Complete"}
             </p>
             <dl className="matter-summary">
@@ -336,6 +340,8 @@ export default function MatterPage() {
             </dl>
             <nav className="matter-nav" aria-label="Matter sections">
               {[
+                ["next-action", "Next steps"],
+                ["professional-review", "Mandatory advocate review"],
                 ["facts", "Facts"],
                 ["authority", "Authority"],
                 ["documents", "Documents"],
@@ -350,6 +356,15 @@ export default function MatterPage() {
               ))}
             </nav>
           </section>
+          <ProfessionalNotice />
+          <HandoffPanel
+            key={id}
+            matterId={id}
+            workflow={data.workflow}
+            role={role}
+            updatedAt={n.updatedAt}
+            onUpdated={load}
+          />
           <section
             className="form-panel matter-section"
             id="facts"
@@ -632,6 +647,41 @@ export default function MatterPage() {
               </article>
             ))}
           </section>
+          <Suspense
+            fallback={<p role="status">Loading document intelligence tools…</p>}
+          >
+            <AiWorkspace
+              key={id}
+              matterId={id}
+              role={role}
+              revision={n.draftRevision || 0}
+              paymentStatus={n.paymentStatus}
+              signedFile={n.signedFile}
+              files={[
+                n.supportingDocument,
+                ...(n.supportingDocuments || []),
+                ...data.documents.flatMap((d) => [
+                  d.fileName,
+                  ...(d.responseFiles || []),
+                ]),
+              ].filter(Boolean)}
+              caseSummary={n.caseSummary}
+              hasDraft={!!n.generatedNotice?.trim()}
+              editingDraft={editing || editFacts}
+              onApplied={load}
+              onAdoptFacts={
+                isClient && n.paymentStatus !== "Paid" && !n.lawyerId
+                  ? (text) => {
+                      setFacts({ subject: n.subject, caseSummary: text });
+                      setEditFacts(true);
+                      document
+                        .getElementById("facts")
+                        ?.scrollIntoView({ block: "start" });
+                    }
+                  : undefined
+              }
+            />
+          </Suspense>
           <section
             className="form-panel matter-section"
             id="assignment"
@@ -642,7 +692,7 @@ export default function MatterPage() {
               {n.lawyerName ||
                 "The administrator will assign an approved advocate."}
             </p>
-            {role === "admin" && !frozen && (
+            {role === "admin" && !frozen && n.paymentStatus === "Paid" && (
               <form
                 className="matter-form"
                 onSubmit={(e) => {
@@ -807,43 +857,16 @@ export default function MatterPage() {
                 )}
               </>
             )}
-            {isReviewer && !frozen && n.paymentStatus === "Paid" && (
-              <div className="review-controls">
-                <p>
-                  Record professional review only after checking the draft and
-                  supporting records.
-                </p>
-                {pendingDocuments && (
-                  <p>
-                    <a href="#documents">
-                      Resolve and review all document responses
-                    </a>{" "}
-                    before recording approval.
-                  </p>
-                )}
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={busy || editing || reviewed || pendingDocuments}
-                  onClick={() =>
-                    act(
-                      () =>
-                        api(
-                          "/api/client-portal/notices/" + id + "/status",
-                          "POST",
-                          {
-                            status: "approved",
-                            revision: n.draftRevision || 0,
-                          },
-                        ),
-                      "Professional review approval recorded.",
-                    )
-                  }
-                >
-                  Record review approval
-                </button>
-              </div>
-            )}
+            <VettingPanel
+              key={id}
+              matterId={id}
+              role={role}
+              revision={n.draftRevision || 0}
+              paid={n.paymentStatus === "Paid"}
+              frozen={frozen}
+              updatedAt={n.updatedAt}
+              onUpdated={load}
+            />
             <h3>Saved draft versions</h3>
             {!versions.length && (
               <p>
@@ -932,15 +955,18 @@ export default function MatterPage() {
                 <p>
                   Authority approval and configured pricing are required before
                   the gateway can open. No payment is taken when you submit a
-                  notice request.
+                  notice request. If online payment is unavailable, contact the
+                  administrator for a reconciled payment option.
                 </p>
                 <button
                   type="button"
                   className="btn btn-primary"
-                  disabled={busy}
+                  disabled={busy || !data.capabilities?.paymentGateway}
                   onClick={pay}
                 >
-                  Continue to configured payment gateway
+                  {data.capabilities?.paymentGateway
+                    ? "Continue to payment gateway"
+                    : "Online payments unavailable"}
                 </button>
               </>
             )}
@@ -1047,6 +1073,7 @@ export default function MatterPage() {
                   <label htmlFor="signed-pdf">Final signed PDF</label>
                   <input
                     id="signed-pdf"
+                    key={id}
                     type="file"
                     accept=".pdf"
                     required
@@ -1061,90 +1088,8 @@ export default function MatterPage() {
                   </button>
                 </form>
               )}
-            <dl className="matter-summary">
-              <dt>Courier</dt>
-              <dd>{n.courier || "Not recorded"}</dd>
-              <dt>Tracking reference</dt>
-              <dd>{n.trackingId || "Not dispatched"}</dd>
-              <dt>Dispatch date</dt>
-              <dd>{n.dispatchDate || "Not recorded"}</dd>
-              <dt>Delivery status</dt>
-              <dd>{n.deliveryStatus || "Not dispatched"}</dd>
-            </dl>
-            {n.proofOfDelivery && (
-              <FileLink file={n.proofOfDelivery}>
-                View proof of delivery
-              </FileLink>
-            )}
-            {role === "admin" && frozen && (
-              <form
-                className="matter-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  act(async () => {
-                    const body = { ...delivery };
-                    if (proof) {
-                      const u = await FileUpload(proof);
-                      if (!u.success) throw Error(u.message);
-                      body.proofOfDelivery = u.fileName;
-                    }
-                    await api(
-                      "/api/client-portal/notices/" + id + "/delivery",
-                      "POST",
-                      body,
-                    );
-                  }, "Delivery record saved.");
-                }}
-              >
-                {[
-                  ["courier", "Courier", "text"],
-                  ["trackingId", "Tracking reference", "text"],
-                  ["dispatchDate", "Dispatch date", "date"],
-                ].map(([k, l, t]) => (
-                  <label key={k} htmlFor={"delivery-" + k}>
-                    {l}
-                    <input
-                      type={t}
-                      id={"delivery-" + k}
-                      value={delivery[k]}
-                      required
-                      onChange={(e) =>
-                        setDelivery((p) => ({ ...p, [k]: e.target.value }))
-                      }
-                    />
-                  </label>
-                ))}
-                <label htmlFor="delivery-status">
-                  Delivery status
-                  <select
-                    id="delivery-status"
-                    value={delivery.deliveryStatus}
-                    onChange={(e) =>
-                      setDelivery((p) => ({
-                        ...p,
-                        deliveryStatus: e.target.value,
-                      }))
-                    }
-                  >
-                    <option>In Transit</option>
-                    <option>Delivered</option>
-                    <option>Returned</option>
-                  </select>
-                </label>
-                <label htmlFor="delivery-proof">
-                  Proof of delivery (optional)
-                  <input
-                    id="delivery-proof"
-                    type="file"
-                    accept=".pdf,.png,.jpg,.jpeg"
-                    onChange={(e) => setProof(e.target.files[0])}
-                  />
-                </label>
-                <button disabled={busy} className="btn btn-primary">
-                  Save delivery record
-                </button>
-              </form>
-            )}
+            <DeliveryPanel key={id} notice={n} canUpdate={['admin','lawyer'].includes(role)} onUpdated={load}/>
+
           </section>
           <section
             className="form-panel matter-section"
@@ -1164,6 +1109,7 @@ export default function MatterPage() {
                   <p>
                     {event.actorRole} · {dates(event.createdAt)}
                   </p>
+                  {(event.attachments || []).map(file => <p key={file._id || file.fileName}><FileLink file={file.fileName}>{file.kind === 'courierReceipt' ? 'Courier receipt' : 'Proof of delivery'}</FileLink></p>)}
                   {event.detail && (
                     <p className="preserve-lines">{event.detail}</p>
                   )}

@@ -1,15 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
-import { jsPDF } from "jspdf";
+
 import Swal from "sweetalert2";
 import ClientPortalLayout from "./ClientPortalLayout";
 import { fetchData } from "../../../helper/ApiCall";
 import { BASE_URL_IMAGE, END_POINT, METHODS } from "../../../helper/helper";
 
-const DRAFT_WATERMARK = "DRAFT";
+
 
 const ClientMyNotices = () => {
+ const navigate=useNavigate();
+ const handleView=notice=>navigate('/matters/'+notice._id);
+ const handleDownloadPdf=notice=>{if(notice.signedFile){window.location.assign('/uploads/'+encodeURIComponent(notice.signedFile));return}if(!String(notice.generatedNotice||'').trim()){Swal.fire({title:'No saved draft',text:'Open the matter to prepare a draft.',icon:'info'});return}window.location.assign('/api/matters/'+notice._id+'/export/pdf')};
   const { userData } = useSelector((store) => store.userReducer);
   const [loading, setLoading] = useState(false);
   const [notices, setNotices] = useState([]);
@@ -79,23 +82,9 @@ const ClientMyNotices = () => {
     return status === "uploaded" ? "approved" : status;
   };
 
-  const isNoticeApproved = (notice) => {
-    const status = normalizeNoticeStatus(notice?.status);
-    return status === "approved" || status === "verified";
-  };
 
-  const buildDraftWatermarkHtml = (notice) => {
-    if (isNoticeApproved(notice)) return "";
-    const marks = Array.from({ length: 24 }, (_, index) => (
-      `<span style="display:inline-flex; align-items:center; justify-content:center; width:33.333%; height:120px; color:rgba(23, 92, 143, 0.11); font-size:42px; font-weight:800; letter-spacing:8px; transform:rotate(-32deg);">${DRAFT_WATERMARK}</span>`
-    ));
 
-    return `
-      <div style="position:absolute; inset:0; display:flex; flex-wrap:wrap; align-content:flex-start; pointer-events:none; user-select:none; z-index:0; overflow:hidden;">
-        ${marks.join("")}
-      </div>
-    `;
-  };
+
 
   const formatAmount = (amount) => {
     if (amount === null || amount === undefined || amount === "") return "-";
@@ -107,64 +96,7 @@ const ClientMyNotices = () => {
     })}`;
   };
 
-  const handlePayLawyer = async (notice) => {
-    const result = await Swal.fire({
-      title: "Pay to Lawyer",
-      text: `Proceed with payment for notice ${notice.noticeId}?`,
-      icon: "info",
-      showCancelButton: true,
-      confirmButtonColor: "#175c8f",
-      cancelButtonColor: "#aaa",
-      confirmButtonText: "Proceed to Pay",
-    });
-
-    if (!result.isConfirmed) return;
-
-    try {
-      const payload = {
-        noticeId: notice.noticeId,
-        clientId: clientId,
-        firstname: userData?.name || userData?.ownerName || "Client",
-        email: userData?.email || "",
-        phone: userData?.phone || "",
-      };
-
-      const response = await fetchData(END_POINT.PayuInitiate, METHODS.POST, payload);
-
-      if (!response?.success) {
-        Swal.fire({
-          title: "Error",
-          text: response?.message || "Could not initiate payment. Please try again.",
-          icon: "error",
-          confirmButtonColor: "#175c8f",
-        });
-        return;
-      }
-
-      const { payuUrl, ...formFields } = response.data;
-
-      // Auto-submit hidden form to PayU
-      const form = document.createElement("form");
-      form.method = "POST";
-      form.action = payuUrl;
-      Object.entries(formFields).forEach(([key, value]) => {
-        const input = document.createElement("input");
-        input.type = "hidden";
-        input.name = key;
-        input.value = value;
-        form.appendChild(input);
-      });
-      document.body.appendChild(form);
-      form.submit();
-    } catch (error) {
-      Swal.fire({
-        title: "Error",
-        text: "Something went wrong. Please try again.",
-        icon: "error",
-        confirmButtonColor: "#175c8f",
-      });
-    }
-  };
+  const handlePayLawyer=notice=>navigate('/matters/'+notice._id+'#payment');
 
   const categories = useMemo(() => {
     const values = new Set(notices.map((n) => n.category).filter(Boolean));
@@ -208,247 +140,19 @@ const ClientMyNotices = () => {
     return counts;
   }, [notices]);
 
-  const escapeHtml = (value) =>
-    String(value || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
 
-  const formatNoticeForDisplay = (value) => {
-    const text = String(value || "").trim();
-    if (!text) return "No generated notice found.";
-    if (/<[a-z][\s\S]*>/i.test(text)) {
-      return text;
-    }
 
-    const normalized = text
-      .replace(/\s+(?=(Date:|From:|To:|Subject:|Category:|Sir\/Madam,))/g, "\n")
-      .replace(/\s+(?=\d+\.\s)/g, "\n\n")
-      .replace(/\s+(?=(Name:|Company:|Address:|Phone:|Email:))/g, "\n")
-      .replace(/\s+(?=(Kind Attention:))/g, "\n");
 
-    const blocks = normalized
-      .split(/\n\s*\n/)
-      .map((block) => block.trim())
-      .filter(Boolean);
 
-    return blocks
-      .map((block) => `<p>${escapeHtml(block).replace(/\n/g, "<br/>")}</p>`)
-      .join("");
-  };
 
-  const buildNoticeOverview = (notice) => `
-    <div style="background:linear-gradient(180deg, #f8fbff 0%, #ffffff 100%); border:1px solid #d9e4ef; border-radius:16px; padding:18px 18px 10px 18px; margin-bottom:18px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid #d9e4ef;">
-        <div>
-          <div style="font-size:18px; font-weight:700; color:#12385b;">Notice Overview</div>
-          <div style="font-size:13px; color:#5b7088; margin-top:4px;">Your submitted notice details and draft summary.</div>
-        </div>
-        <div style="display:inline-flex; align-items:center; justify-content:center; min-width:96px; padding:8px 14px; border-radius:999px; background:#eaf3fb; color:#175c8f; font-size:13px; font-weight:700; text-transform:capitalize;">
-          ${escapeHtml(notice.status || "Pending")}
-        </div>
-      </div>
 
-      <div style="display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:14px 18px;">
-        <div style="background:#fff; border:1px solid #e3ebf3; border-radius:12px; padding:12px 14px;">
-          <div style="font-size:12px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6d8298; margin-bottom:6px;">Notice ID</div>
-          <div style="font-size:15px; line-height:1.55; color:#102a43;">${escapeHtml(notice.noticeId || "-")}</div>
-        </div>
-        <div style="background:#fff; border:1px solid #e3ebf3; border-radius:12px; padding:12px 14px;">
-          <div style="font-size:12px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6d8298; margin-bottom:6px;">Category</div>
-          <div style="font-size:15px; line-height:1.55; color:#102a43;">${escapeHtml(notice.category || "-")}</div>
-        </div>
-        <div style="background:#fff; border:1px solid #e3ebf3; border-radius:12px; padding:12px 14px;">
-          <div style="font-size:12px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6d8298; margin-bottom:6px;">Subject</div>
-          <div style="font-size:15px; line-height:1.7; color:#102a43;">${escapeHtml(notice.subject || "-")}</div>
-        </div>
-        <div style="background:#fff; border:1px solid #e3ebf3; border-radius:12px; padding:12px 14px;">
-          <div style="font-size:12px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6d8298; margin-bottom:6px;">Defaulter</div>
-          <div style="font-size:15px; line-height:1.55; color:#102a43;">${escapeHtml(notice.defaulterName || "-")}</div>
-        </div>
-      </div>
 
-      <div style="margin-top:14px; background:#fff; border:1px solid #e3ebf3; border-radius:12px; padding:14px 16px;">
-        <div style="font-size:12px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#6d8298; margin-bottom:8px;">Supporting Document</div>
-        <div style="font-size:15px; line-height:1.7; color:#102a43;">${notice.supportingDocument ? "Available" : "-"}</div>
-      </div>
-    </div>
-  `;
 
-  const buildStyledNoticePreview = (notice) => {
-    const lawyer = notice.lawyerId ? lawyerMap.get(String(notice.lawyerId)) : null;
-    const isAssigned = Boolean(lawyer);
-    const firmName = isAssigned ? (lawyer.firmName || lawyer.name) : "Preliminary draft — unassigned";
-    const designation = isAssigned ? (lawyer.designation || "Advocate") : "Independent review required";
-    const signatureSrc = isAssigned && lawyer.signatureImage
-      ? `${BASE_URL_IMAGE}${lawyer.signatureImage}`
-      : "";
 
-    const headerDetails = isAssigned ? `
-      <p style="margin:3px 0; font-size:15px;"><strong>${escapeHtml(designation)}</strong></p>
-      ${lawyer.address ? `<p style="margin:3px 0; font-size:15px;">${escapeHtml(lawyer.address)}${lawyer.city ? `, ${escapeHtml(lawyer.city)}` : ""}</p>` : ""}
-      ${lawyer.phone ? `<p style="margin:3px 0; font-size:15px;">Phone: ${escapeHtml(lawyer.phone)}</p>` : ""}
-      ${lawyer.email ? `<p style="margin:3px 0; font-size:15px;">Email: ${escapeHtml(lawyer.email)}</p>` : ""}
-      ${lawyer.enrollmentNo ? `<p style="margin:3px 0; font-size:15px;">Enrollment No: ${escapeHtml(lawyer.enrollmentNo)}</p>` : ""}
-    ` : `
-      <p style="margin:3px 0; font-size:15px;"><strong>Advocates &amp; Legal Consultants</strong></p>
-      <p style="margin:3px 0; font-size:15px;">Delhi High Court | Tribunals | District Courts</p>
-      <p style="margin:3px 0; font-size:15px;">Office: 458/459, 2nd Floor, Aggarwal Chamber-3,<br/>Building No. 26, Veer Savarkar Block, Shakarpur,<br/>New Delhi - 110092</p>
-      <p style="margin:3px 0; font-size:15px;">Phone: +91-7042148991 | +91-9990670288</p>
-    `;
 
-    return `
-    <div style="position:relative; overflow:hidden; font-family:'Times New Roman', serif; color:#000; background:#fff; border:1px solid #d7e0ea; border-radius:14px; padding:24px;">
-      ${buildDraftWatermarkHtml(notice)}
-      <div style="position:relative; z-index:1;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:18px;">
-          <tr>
-            <td width="18%" valign="top" style="padding-right:10px;">
-              <img src="/assets/logo.svg" alt="Logo" style="max-width:100px; height:auto;" />
-            </td>
-            <td width="82%" valign="top" style="text-align:left;">
-              <h1 style="font-size:20px; margin:0; font-weight:bold; text-transform:uppercase; color:#000;">${escapeHtml(firmName)}</h1>
-              ${headerDetails}
-            </td>
-          </tr>
-        </table>
 
-        <hr style="border:0; border-top:1px solid #000; margin:16px 0;" />
 
-        <div style="text-align:center; font-weight:bold; font-size:16px; margin:18px 0 12px 0; text-transform:uppercase; letter-spacing:0.5px;">
-          Legal Notice
-        </div>
 
-        <div style="display:flex; justify-content:space-between; gap:16px; font-size:14px; margin-bottom:18px;">
-          <div>
-            <div><strong>Subject:</strong> ${escapeHtml(notice.subject || "-")}</div>
-            <div><strong>Defaulter:</strong> ${escapeHtml(notice.defaulterName || "-")}</div>
-          </div>
-          <div style="text-align:right;">
-            <div><strong>Category:</strong> ${escapeHtml(notice.category || "-")}</div>
-            <div><strong>Status:</strong> ${escapeHtml(notice.status || "-")}</div>
-          </div>
-        </div>
-
-        <div style="line-height:1.8; font-size:15px; text-align:justify;">
-          ${formatNoticeForDisplay(notice.generatedNotice)}
-        </div>
-
-        <div style="border-top:1px solid #cbd5e1; margin-top:28px; padding-top:18px;">
-          <img src="${signatureSrc}" alt="Signature" style="height:70px; margin-bottom:10px;" />
-          <p style="margin:0; font-size:15px;">Best Regards,</p>
-          <p style="margin:0; font-size:15px;"><strong>${escapeHtml(firmName)}</strong></p>
-          <p style="margin:0; font-size:15px;">${escapeHtml(designation)}</p>
-        </div>
-      </div>
-    </div>
-  `};
-
-  const getNoticePdfText = (value) => {
-    const html = String(value || "").trim();
-    if (!html) return "";
-    if (!/<[a-z][\s\S]*>/i.test(html)) return html;
-
-    const wrapper = document.createElement("div");
-    wrapper.innerHTML = html
-      .replace(/<\/p>/gi, "</p>\n\n")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<\/h[1-6]>/gi, "\n\n")
-      .replace(/<\/li>/gi, "\n");
-
-    return wrapper.textContent.replace(/\n{3,}/g, "\n\n").trim();
-  };
-
-  const handleView = (notice) => {
-    Swal.fire({
-      title: notice.noticeId || "Notice Details",
-      html: `
-        <div style="text-align:left">
-          ${buildNoticeOverview(notice)}
-          <div style="font-size:18px; font-weight:700; color:#12385b; margin:2px 0 12px 0;">Generated Notice</div>
-          <div style="max-height:560px; overflow:auto;">${buildStyledNoticePreview(notice)}</div>
-        </div>
-      `,
-      width: 960,
-      confirmButtonColor: "#175c8f",
-    });
-  };
-
-  const handleDownloadPdf = (notice) => {
-    if (!String(notice.generatedNotice || "").trim()) {
-      Swal.fire({
-        title: "No Notice Draft",
-        text: "Generated notice content is not available for this record.",
-        icon: "warning",
-        confirmButtonColor: "#175c8f",
-      });
-      return;
-    }
-
-    const doc = new jsPDF({
-      orientation: "portrait",
-      unit: "pt",
-      format: "a4",
-    });
-
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 40;
-    let y = margin;
-    const shouldShowDraftWatermark = !isNoticeApproved(notice);
-
-    const drawDraftWatermark = () => {
-      if (!shouldShowDraftWatermark) return;
-
-      doc.saveGraphicsState();
-      doc.setTextColor(23, 92, 143);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(44);
-
-      const gState = new doc.GState({ opacity: 0.11 });
-      doc.setGState(gState);
-
-      for (let rowY = 115; rowY < pageHeight; rowY += 150) {
-        for (let colX = 70; colX < pageWidth + 80; colX += 210) {
-          doc.text(DRAFT_WATERMARK, colX, rowY, { angle: -32 });
-        }
-      }
-
-      doc.restoreGraphicsState();
-      doc.setTextColor(0, 0, 0);
-    };
-
-    drawDraftWatermark();
-
-    const writeLine = (text, options = {}) => {
-      const fontSize = options.fontSize || 11;
-      const gap = options.gap || 18;
-      doc.setFont("helvetica", options.fontStyle || "normal");
-      doc.setFontSize(fontSize);
-      const lines = doc.splitTextToSize(String(text || ""), pageWidth - margin * 2);
-
-      lines.forEach((line) => {
-        if (y > pageHeight - margin) {
-          doc.addPage();
-          drawDraftWatermark();
-          y = margin;
-        }
-        doc.text(line, margin, y);
-        y += gap;
-      });
-    };
-
-    writeLine(notice.noticeId || "Legal Notice", { fontSize: 16, fontStyle: "bold", gap: 22 });
-    writeLine(`Subject: ${notice.subject || "-"}`, { fontStyle: "bold" });
-    writeLine(`Category: ${notice.category || "-"}`);
-    writeLine(`Defaulter: ${notice.defaulterName || "-"}`);
-    writeLine("");
-    writeLine(getNoticePdfText(notice.generatedNotice || ""));
-
-    doc.save(`${notice.noticeId || "legal-notice"}.pdf`);
-  };
 
   return (
     <ClientPortalLayout

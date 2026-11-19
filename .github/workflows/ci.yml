@@ -9,11 +9,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
+      - run: npm install --global npm@11.9.0 --no-audit --no-fund
       - run: npm ci
+      - run: npm run typecheck
       - run: npm test
-      - run: npm run build
+      - run: npm run build:vercel
+      - name: Check Vercel CommonJS loader compatibility
+        run: SESSION_SECRET=isolated-ci-module-compatibility-secret APP_ENV=staging VERCEL=1 node --no-experimental-require-module -e 'require("./server/app").createApp({sessionStore:new(require("express-session").MemoryStore)()})'
       - name: Start isolated MongoDB replica set
         run: |
           docker run -d --name noticeai-test-mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
@@ -35,3 +39,15 @@ jobs:
         env:
           UPLOAD_STORAGE: gridfs
           TEST_MONGODB_URI: mongodb://127.0.0.1:27017/noticeai_integration_test?replicaSet=rs0&directConnection=true
+      - name: Build staging container
+        run: docker build -t resolvex-staging:ci .
+      - name: Smoke-test isolated staging container
+        run: |
+          node -e "require('fs').writeFileSync('/tmp/resolvex-ci.env','SESSION_SECRET='+require('crypto').randomBytes(40).toString('hex'),{mode:0o600})"
+          docker run -d --name resolvex-ci --network host --env-file /tmp/resolvex-ci.env -e APP_ENV=staging -e NODE_ENV=development -e APP_ORIGIN=http://localhost:6080 -e SESSION_COOKIE_NAME=resolvex.ci.sid -e MONGODB_URI='mongodb://127.0.0.1:27017/noticeai_staging?replicaSet=rs0&directConnection=true' -e UPLOAD_STORAGE=gridfs -e AI_FEATURES_ENABLED=false -e PAYU_IS_LIVE=false resolvex-staging:ci
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://localhost:6080/api/health; then exit 0; fi
+            sleep 1
+          done
+          docker logs resolvex-ci
+          exit 1

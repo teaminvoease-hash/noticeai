@@ -315,10 +315,12 @@ router.get(
             }).lean()
           : Promise.resolve(null),
       ]);
+    const assignedAdvocate=n.lawyerId&&mongoose.isValidObjectId(n.lawyerId)?await a.Lawyer.findById(n.lawyerId).select('status credentialReview'):null;
     res.json({
       success: true,
       data: {
         notice: n,
+        capabilities:{paymentGateway:require("./config/commercialReview").commercialReady()&&!!process.env.PAYU_KEY&&!!process.env.PAYU_SALT,emailDelivery:!!process.env.SMTP_HOST&&!!process.env.SMTP_FROM&&(process.env.APP_ENV!=='staging'||process.env.STAGING_ALLOW_EXTERNAL_DELIVERY==='true')},
         client,
         recipient,
         documents: documents.map((d) => ({
@@ -328,7 +330,7 @@ router.get(
         events,
         versions,
         payments,
-        workflow: require("./workflow").workflow(n, client, documents),
+        workflow: require("./workflow").workflow(n, client, documents, assignedAdvocate),
       },
     });
   }),
@@ -376,6 +378,7 @@ router.post(
       a.fail(400, "Document title and instructions are required");
     let data;
     await mongoose.connection.transaction(async (session) => {
+      await service.lockDocumentMatter(req,n,session);
       [data] = await a.ClientDocument.create(
         [
           {
@@ -389,11 +392,6 @@ router.post(
             status: "Requested",
           },
         ],
-        { session },
-      );
-      await a.ClientNotice.updateOne(
-        { _id: n._id },
-        { $set: { status: "pending" } },
         { session },
       );
       await service.event(req, n, "Document requested", type, session);

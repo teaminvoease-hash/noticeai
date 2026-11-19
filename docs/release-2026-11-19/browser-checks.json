@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "steps": [
+    "AI revision request",
+    "edit proposal",
+    "protect unsaved manual edits",
+    "save version 1",
+    "manual correction creates version 2",
+    "fresh mandatory vetting",
+    "signed PDF upload",
+    "client notification and private download",
+    "mobile no-overflow",
+    "courier receipt upload and private client download",
+    "authority replacement is explicit",
+    "admin delivery handoff"
+  ],
+  "provider": "synthetic mocked response; no external AI request",
+  "browserErrors": []
+}

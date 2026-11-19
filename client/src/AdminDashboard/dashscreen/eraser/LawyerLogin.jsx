@@ -1,3 +1,4 @@
+import ProfessionalNotice from '../../../components/platform/ProfessionalNotice';
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { END_POINT, METHODS } from "../../../helper/helper";
@@ -73,6 +74,7 @@ const LawyerLogin = () => {
           <h1 className="auth-title">Lawyer Login</h1>
           <p className="auth-subtitle">Login to review AI drafts, request documents, and upload signed notices.</p>
 
+          <ProfessionalNotice/>
           <form className="auth-form" onSubmit={handleSubmit}>
             <label htmlFor="lawyer-email">Email Address</label>
             <input

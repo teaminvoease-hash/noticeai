@@ -410,22 +410,11 @@ const LawyerAssignedNoticesPage = () => {
     </div>
   `};
 
-  const handleView = (item) => {
-    Swal.fire({
-      title: item.noticeId || "Assigned Notice",
-      html: `
-        <div style="text-align:left">
-          ${buildNoticeOverview(item)}
-          <div style="font-size:18px; font-weight:700; color:#12385b; margin:2px 0 12px 0;">Generated Notice</div>
-          <div style="max-height:560px; overflow:auto;">${buildStyledNoticePreview(item)}</div>
-        </div>
-      `,
-      confirmButtonColor: "#175c8f",
-      width: 960,
-    });
-  };
+  const handleView = item => window.location.assign('/matters/'+item._id);
 
   const handleStatusChange = async (noticeId, nextStatus) => {
+    if(["approved","verified"].includes(nextStatus)){window.location.assign("/matters/"+noticeId+"#professional-review");return;}
+
     if (!noticeId || !nextStatus) return;
     setStatusDrafts((prev) => ({ ...prev, [noticeId]: nextStatus }));
     setUpdatingStatusId(noticeId);
@@ -538,146 +527,11 @@ const LawyerAssignedNoticesPage = () => {
     });
   };
 
-  const handleDownloadPdf = async (item) => {
-    if (!String(item.generatedNotice || "").trim()) {
-      Swal.fire({
-        title: "No Notice Draft",
-        text: "Generated notice content is not available for this record.",
-        icon: "warning",
-        confirmButtonColor: "#175c8f",
-      });
-      return;
-    }
+  const handleDownloadPdf = item => window.location.assign(item.signedFile?'/uploads/'+encodeURIComponent(item.signedFile):'/api/matters/'+item._id+'/export/pdf');
 
-    const doc = new jsPDF({
-      orientation: "portrait",
-      unit: "pt",
-      format: "a4",
-    });
+  const handleOpenEditModal = item => window.location.assign('/matters/'+item._id+'#draft');
 
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 40;
-    let y = margin;
-    const bodyText = normalizeNoticeBodyForPdf(stripNoticeClosing(item.generatedNotice || ""));
-
-    const pdfFirmName = (userData?.firmName || userData?.name || "Saurav Deep & Associates").toUpperCase();
-    const pdfDesignation = userData?.designation || "Advocate";
-
-    const drawHeader = (logoDataUrl) => {
-      y = margin;
-
-      if (logoDataUrl) {
-        doc.addImage(logoDataUrl, "PNG", margin, y, 70, 70);
-      }
-
-      doc.setFont("times", "bold");
-      doc.setFontSize(18);
-      doc.text(pdfFirmName, margin + 90, y + 12);
-
-      doc.setFont("times", "bold");
-      doc.setFontSize(12);
-      doc.text(pdfDesignation, margin + 90, y + 30);
-
-      doc.setFont("times", "normal");
-      doc.setFontSize(11);
-      let pdfY = y + 46;
-      if (userData?.address) { doc.text(userData.address + (userData.city ? `, ${userData.city}` : ""), margin + 90, pdfY); pdfY += 16; }
-      if (userData?.phone) { doc.text(`Phone: ${userData.phone}`, margin + 90, pdfY); pdfY += 16; }
-      if (userData?.email) { doc.text(`Email: ${userData.email}`, margin + 90, pdfY); pdfY += 16; }
-      if (userData?.enrollmentNo) { doc.text(`Enrollment No: ${userData.enrollmentNo}`, margin + 90, pdfY); pdfY += 16; }
-
-      y = Math.max(y + 120, pdfY + 10);
-      doc.setLineWidth(1);
-      doc.line(margin, y, pageWidth - margin, y);
-      y += 18;
-
-      doc.setFont("times", "bold");
-      doc.setFontSize(14);
-      doc.text("LEGAL NOTICE", pageWidth / 2, y, { align: "center" });
-      y += 22;
-
-      doc.setFont("times", "normal");
-      doc.setFontSize(11);
-      doc.text(`Date: ${new Date().toLocaleDateString("en-GB")}`, pageWidth - margin, y, { align: "right" });
-      y += 26;
-    };
-
-    const FOOTER_HEIGHT = 110; // space needed for footer content
-
-    const drawFooter = (signatureDataUrl) => {
-      // If footer doesn't fit on current page, add a new page
-      if (y + FOOTER_HEIGHT > pageHeight - margin) {
-        doc.addPage();
-        y = margin;
-      }
-
-      let footerY = y + 20; // small gap after content
-      doc.setLineWidth(0.6);
-      doc.line(margin, footerY, pageWidth - margin, footerY);
-      footerY += 14;
-
-      if (signatureDataUrl) {
-        doc.addImage(signatureDataUrl, "PNG", margin, footerY, 110, 42);
-      }
-
-      doc.setFont("times", "normal");
-      doc.setFontSize(11);
-      doc.text("Best Regards,", margin, footerY + 54);
-      doc.setFont("times", "bold");
-      doc.text(pdfFirmName, margin, footerY + 70);
-      doc.setFont("times", "normal");
-      doc.text(pdfDesignation, margin, footerY + 84);
-    };
-
-    const writeLine = (text, options = {}) => {
-      const fontSize = options.fontSize || 11;
-      const gap = options.gap || 18;
-      doc.setFont("helvetica", options.fontStyle || "normal");
-      doc.setFontSize(fontSize);
-      const lines = doc.splitTextToSize(String(text || ""), pageWidth - margin * 2);
-
-      lines.forEach((line) => {
-        if (y > pageHeight - margin - FOOTER_HEIGHT - 20) {
-          doc.addPage();
-          drawHeader(logoDataUrl);
-        }
-        doc.text(line, margin, y);
-        y += gap;
-      });
-    };
-
-    let logoDataUrl = "";
-    let signatureDataUrl = "";
-    try {
-      [logoDataUrl, signatureDataUrl] = await Promise.all([
-        loadImageAsDataUrl("/assets/logo.svg"),
-        loadImageAsDataUrl(userData?.signatureImage ? `${BASE_URL_IMAGE}${userData.signatureImage}` : ""),
-      ]);
-    } catch (error) {
-      logoDataUrl = "";
-      signatureDataUrl = "";
-    }
-
-    drawHeader(logoDataUrl);
-    writeLine(bodyText, { gap: 17 });
-    drawFooter(signatureDataUrl);
-
-    doc.save(`${item.noticeId || "legal-notice"}.pdf`);
-  };
-
-  const handleOpenEditModal = (item) => {
-    setEditingNotice(item);
-    setEditorValue(formatNoticeForEditor(item.generatedNotice || ""));
-  };
-
-  const handleOpenSendModal = (item) => {
-    const defaulter = defaulterMap.get(String(item.defaulterId || ""));
-    setSendingNotice({
-      ...item,
-      defaulterEmail: defaulter?.email || "",
-    });
-  };
+  const handleOpenSendModal = item => window.location.assign('/matters/'+item._id+'#delivery');
 
   const handleSendNoticeEmail = async () => {
     if (!sendingNotice?._id) return;

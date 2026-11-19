@@ -1,4 +1,4 @@
-const axios = require("axios");
+
 const { Client } = require("../models/client.model");
 const { ClientNotice } = require("../models/clientNotice.model");
 const { ClientDocument } = require("../models/clientDocument.model");
@@ -28,25 +28,7 @@ const generateClientNoticeId = async () => {
   throw new Error("All 4 digit notice IDs are already used");
 };
 
-const getOpenAIText = (data) => {
-  if (typeof data?.output_text === "string" && data.output_text.trim()) {
-    return data.output_text.trim();
-  }
 
-  const output = Array.isArray(data?.output) ? data.output : [];
-  const parts = [];
-
-  output.forEach((item) => {
-    const content = Array.isArray(item?.content) ? item.content : [];
-    content.forEach((entry) => {
-      if (typeof entry?.text === "string" && entry.text.trim()) {
-        parts.push(entry.text.trim());
-      }
-    });
-  });
-
-  return parts.join("\n\n").trim();
-};
 
 const stripHtmlToText = (value) => {
   const text = String(value || "").trim();
@@ -67,44 +49,7 @@ const stripHtmlToText = (value) => {
     .trim();
 };
 
-const buildNoticePrompt = ({ client, defaulter, subject, category, recipientDetails, caseSummary }) => {
-  return `
-Generate a formal Indian legal notice in plain text.
 
-Requirements:
-- Output only the notice body in professional legal language.
-- Do not use markdown fences.
-- Include notice heading, date line placeholder, sender details, recipient details, factual background, legal demand, time period for compliance, and closing.
-- Use the category to shape the legal framing.
-- Keep the notice detailed and ready for advocate review.
-
-Notice Category: ${category || "General"}
-Subject: ${subject || ""}
-
-Client Details:
-- Name: ${client?.name || ""}
-- Email: ${client?.email || ""}
-- Phone: ${client?.phone || ""}
-- Address: ${client?.address || ""}
-- Company: ${client?.company || ""}
-- Owner Name: ${client?.owner_name || client?.ownerName || ""}
-
-Recipient Details Entered By Client:
-${recipientDetails || ""}
-
-Defaulter Details:
-- Name: ${defaulter?.name || ""}
-- Email: ${defaulter?.email || ""}
-- Phone: ${defaulter?.phone || ""}
-- Company Name: ${defaulter?.companyName || ""}
-- Address: ${defaulter?.address || ""}
-- Total Due Amount: ${defaulter?.totalDueAmount || 0}
-- Last Invoice Date: ${defaulter?.lastInvoiceDate || ""}
-
-Case Summary:
-${caseSummary || ""}
-  `.trim();
-};
 
 const buildFallbackNotice = ({ client, defaulter, subject, category, recipientDetails, caseSummary }) => {
   const today = new Date().toLocaleDateString("en-IN", {
@@ -142,14 +87,14 @@ Under instructions from and on behalf of my client ${client?.name || "the client
    Phone: ${defaulter?.phone || "-"}
    Email: ${defaulter?.email || "-"}
 
-3. As per the records provided by my client, an amount of Rs. ${Number(defaulter?.totalDueAmount || 0).toLocaleString("en-IN")} is outstanding. The last invoice/date of transaction available with my client is ${defaulter?.lastInvoiceDate || "-"}.
+3. As per the records provided by my client, the financial particulars, if applicable, require verification against the supporting records. Recorded amount: ${defaulter?.totalDueAmount ? "Rs. "+Number(defaulter.totalDueAmount).toLocaleString("en-IN") : "Not supplied"}. Recorded transaction date: ${defaulter?.lastInvoiceDate || "Not supplied"}.
 
 4. The material facts, as provided by my client, are stated below:
 ${caseSummary || "The client has reported a dispute and seeks immediate resolution in accordance with law."}
 
-5. My client calls upon you to immediately comply with your legal and contractual obligations, clear the outstanding dues, and resolve the matter within 15 days from the date of receipt of this notice.
+5. My client calls upon you to immediately comply with your legal and contractual obligations, address the documented matter. [Advocate: specify the precise relief, any substantiated amount and a legally appropriate response deadline after checking the facts and applicable law.]
 
-6. In the event of failure to comply within the above period, my client shall be constrained to initiate appropriate civil and/or criminal proceedings against you before the competent authority, entirely at your risk as to costs and consequences.
+6. In the event of failure to comply within the above period, [Advocate: identify appropriate remedies and the competent forum only after reviewing the evidence, jurisdiction and applicable law. Do not infer criminal liability from a contractual dispute.]
 
 7. You are further called upon to preserve all relevant records, communications, invoices, agreements, and supporting materials relating to this matter.
 
@@ -161,71 +106,7 @@ ${client?.name || "Client Name"}
   `.trim();
 };
 
-const generateNoticeWithFallback = async (payload) => {
-  try {
-    return await generateAINoticeDraft(payload);
-  } catch (err) {
-    return 'PRELIMINARY TEMPLATE — NOT AI-GENERATED. INDEPENDENT ADVOCATE REVIEW REQUIRED.\n\n'+buildFallbackNotice(payload);
-  }
-};
-
-const generateAINoticeDraft = async (payload) => {
-  const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not configured on server");
-  }
-
-  let response;
-  try {
-    response = await axios.post(
-      "https://api.openai.com/v1/responses",
-      {
-        model: "gpt-4.1-mini",
-        input: [
-          {
-            role: "system",
-            content: [
-              {
-                type: "input_text",
-                text: "You draft formal Indian legal notices for advocate review. Produce plain text only.",
-              },
-            ],
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: buildNoticePrompt(payload),
-              },
-            ],
-          },
-        ],
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        timeout: 60000,
-      }
-    );
-  } catch (err) {
-    console.error("OpenAI notice generation failed");
-    console.error("OpenAI status:", err.response?.status || "no-status");
-    console.error("OpenAI status text:", err.response?.statusText || "no-status-text");
-    console.error("OpenAI response body:", JSON.stringify(err.response?.data || {}, null, 2));
-    console.error("OpenAI error message:", err.message);
-    throw err;
-  }
-
-  const generatedNotice = require('sanitize-html')(getOpenAIText(response.data));
-  if (!generatedNotice) {
-    throw new Error("AI notice generation returned empty content");
-  }
-
-  return generatedNotice;
-};
+const generateNoticeWithFallback = async (payload) => 'PRELIMINARY TEMPLATE — NOT AI-GENERATED. INDEPENDENT ADVOCATE REVIEW REQUIRED.\n\n'+buildFallbackNotice(payload);
 
 const generateDefaulterId = async () => {
   let nextId = "";
@@ -687,15 +568,22 @@ const assignNoticeToLawyer = async (req, res) => {
 
     const client = await Client.findById(notice.clientId).select("name email owner_name ownerName");
 
-    const updated = await ClientNotice.findByIdAndUpdate(
-      req.params.id,
+    let updated;
+    await require("mongoose").connection.transaction(async session => {
+    updated = await ClientNotice.findOneAndUpdate(
+      {_id:notice._id,updatedAt:notice.updatedAt,paymentStatus:"Paid",signedFile:{$in:[null, ""]}},
       {
+        ...(String(notice.lawyerId)!==String(lawyer._id)?{status:"pending"}:{}),
         lawyerId: String(lawyer._id),
         lawyerName: lawyer.name || "",
         lawyerCode: lawyer.advocate_id || "",
       },
-      { new: true }
+      { new: true, session }
     );
+
+    if(!updated)require("../access").fail(409,"The matter changed or was signed. Refresh before assignment.");
+    await require("../matterServices").event(req, updated, "Advocate assigned", "Your request has been assigned for mandatory advocate vetting and finalization.", session);
+    });
 
     await sendNoticeAssignedEmails({
       lawyer,
@@ -775,25 +663,19 @@ const sendNoticeEmailToDefaulter = async (req, res) => {
       });
     }
 
-    const defaulter = await ClientDefaulter.findById(notice.defaulterId).select("name email companyName");
-    if (!defaulter || !String(defaulter.email || "").trim()) {
-      return res.status(200).json({
-        success: false,
-        message: "Defaulter email not found for this notice",
-      });
-    }
-
+    const destination=require('../services/professionalReview').emailDestination(notice);
+    const defaulter = require('mongoose').isValidObjectId(notice.defaulterId)?await ClientDefaulter.findById(notice.defaulterId).select("name email companyName"):null;
     const lawyer = await Lawyer.findById(lawyerId).select("name advocate_id");
     const client = await Client.findById(notice.clientId).select("name email owner_name ownerName");
     const clientName = client?.name || client?.owner_name || client?.ownerName || "Client";
     const lawyerName = lawyer?.name || "Assigned Lawyer";
-    const defaulterName = defaulter?.name || notice.defaulterName || "Defaulter";
+    const defaulterName = defaulter?.name || notice.defaulterName || "Recipient";
     const emailSubject = `Legal Notice - ${notice.noticeId || "Notice"}`;
-    const noticeBody = stripHtmlToText(notice.generatedNotice || "");
+    const salutation=notice.professionalReview.serviceRoute.mode==='through_counsel'?'Counsel':defaulterName;
     const emailContent = `
-Dear ${defaulterName},
+Dear ${salutation},
 
-Please find below the legal notice issued in relation to this matter.
+Please find attached the advocate-provided signed notice for this matter.
 
 Notice ID: ${notice.noticeId || "-"}
 Subject: ${notice.subject || "-"}
@@ -801,14 +683,14 @@ Category: ${notice.category || "-"}
 Issued on behalf of: ${clientName}
 Assigned Lawyer: ${lawyerName}${lawyer?.advocate_id ? ` (${lawyer.advocate_id})` : ""}
 
-${noticeBody}
+The attached signed document is the operative copy. No preliminary draft is issued by this message.
 
 Regards,
 ${lawyerName}
 Legal Notice Platform
     `.trim();
 
-    await EmailSendHnaldre(String(defaulter.email).trim(), emailSubject, emailContent, [await require('../storage').attachment(notice.signedFile,notice.noticeId+'-signed.pdf')]);
+    await EmailSendHnaldre(destination, emailSubject, emailContent, [await require('../storage').attachment(notice.signedFile,notice.noticeId+'-signed.pdf')]);
     await ClientNotification.create({clientId:notice.clientId,notificationId:buildId('NTF'),channel:'Portal',noticeId:notice.noticeId,message:'Assigned lawyer dispatched the signed notice by email.'});
     await sendNoticeDispatchNotifications({
       lawyer,
@@ -821,11 +703,13 @@ Legal Notice Platform
       success: true,
       message: "Notice email sent successfully",
       data: {
-        defaulterEmail: String(defaulter.email).trim(),
+        defaulterEmail: destination,
+        recipientEmail: destination,
+        communicationRoute: notice.professionalReview.serviceRoute.mode,
       },
     });
   } catch (err) {
-    return res.status(400).json({ success: false, message: "Error: " + err.message });
+    return res.status(err.status||400).json({ success: false, message: err.status?err.message:"Unable to send the notice. Check the configured service and approved communication route." });
   }
 };
 
@@ -850,7 +734,10 @@ const uploadDocument = async (req, res) => {
     const normalizedRole = String(requestedByRole || "client").toLowerCase();
     const resolvedStatus = status || (normalizedRole === "lawyer" ? "sent" : "Requested");
 
-    const created = await ClientDocument.create({
+    let created;
+    await require("mongoose").connection.transaction(async session=>{
+      await require("../matterServices").lockDocumentMatter(req,req.documentMatter,session);
+      [created] = await ClientDocument.create([{
       clientId,
       noticeId,
       docId: buildId("DOC"),
@@ -862,6 +749,8 @@ const uploadDocument = async (req, res) => {
       requestedById: requestedById || "",
       responseFiles: Array.isArray(responseFiles) ? responseFiles : [],
       status: resolvedStatus,
+    }],{session});
+      await require("../matterServices").event(req,req.documentMatter,resolvedStatus==='Uploaded'?'Documents uploaded':'Document requested',type,session);
     });
 
     if (normalizedRole === "lawyer" && String(clientEmail || "").trim()) {
@@ -893,7 +782,7 @@ Legal Notice Platform
 
     return res.status(200).json({ success: true, message: "Document uploaded successfully", data: created });
   } catch (err) {
-    return res.status(400).json({ success: false, message: "Error: " + err.message });
+    return res.status(err.status||400).json({ success: false, message: err.status?err.message:"Unable to save this document." });
   }
 };
 
@@ -961,26 +850,16 @@ const createPayment = async (req, res) => {
       return res.status(200).json({ success: false, message: "clientId, noticeId, amount and method are required" });
     }
 
-    const created = await ClientPayment.create({
-      clientId,
-      noticeId,
-      txnId: buildId("TXN"),
-      amount,
-      method,
-      billingEmail: billingEmail || "",
-      receiptFileName: `${noticeId}_receipt.pdf`,
-      status: "Pending",
+    let created;
+    await require('mongoose').connection.transaction(async session=>{
+      const changed=await ClientNotice.findOneAndUpdate({_id:req.paymentMatter._id,clientId,updatedAt:req.paymentMatter.updatedAt,paymentStatus:{$ne:'Paid'}},{$set:{paymentStatus:'Pending'}},{new:true,session});
+      if(!changed)throw Object.assign(new Error('The payment state changed. Refresh before recording another payment.'),{status:409});
+      [created]=await ClientPayment.create([{clientId,noticeId,txnId:buildId('TXN'),amount,method,billingEmail:billingEmail||'',status:'Pending'}],{session});
     });
-
-    await ClientNotice.findOneAndUpdate(
-      { noticeId },
-      { paymentStatus: "Pending" },
-      { new: true }
-    );
 
     return res.status(200).json({ success: true, message: "Payment recorded successfully", data: created });
   } catch (err) {
-    return res.status(400).json({ success: false, message: "Error: " + err.message });
+    return res.status(err.status||400).json({ success: false, message: err.status?err.message:"Unable to record payment." });
   }
 };
 
@@ -1001,7 +880,7 @@ const getDeliveryTracking = async (req, res) => {
     const filter = clientId ? { clientId } : {};
     const notices = await ClientNotice.find({ $and: [filter, req.scope || {}] }).sort({ createdAt: -1 });
 
-    const data = notices.map(n => ({noticeId:n.noticeId,courier:n.courier || '',trackingId:n.trackingId || '',dispatchDate:n.dispatchDate || '',status:n.deliveryStatus || 'Not dispatched',proofOfDelivery:n.proofOfDelivery || ''}));
+    const data = notices.map(n => ({_id:n._id,noticeId:n.noticeId,courierReceipt:n.courierReceipt||'',nextUpdateAt:n.nextUpdateAt||null,courier:n.courier || '',trackingId:n.trackingId || '',dispatchDate:n.dispatchDate || '',status:n.deliveryStatus || 'Not dispatched',proofOfDelivery:n.proofOfDelivery || ''}));
 
     return res.status(200).json({ success: true, data });
   } catch (err) {
@@ -1019,7 +898,7 @@ const getDownloads = async (req, res) => {
     const noticeFiles = notices.filter(n=>n.signedFile).map(n=>({noticeId:n.noticeId,fileType:'Final Signed Notice',fileName:n.signedFile,status:'Ready',availableOn:n.updatedAt}));
     const paymentFiles = notices.filter(n=>n.proofOfDelivery).map(n=>({noticeId:n.noticeId,fileType:'Proof of Delivery',fileName:n.proofOfDelivery,status:'Ready',availableOn:n.updatedAt}));
 
-    return res.status(200).json({ success: true, data: [...noticeFiles, ...paymentFiles] });
+    return res.status(200).json({ success: true, data: [...noticeFiles, ...paymentFiles, ...notices.filter(n=>n.courierReceipt).map(n=>({noticeId:n.noticeId,fileType:'Courier Receipt',fileName:n.courierReceipt,status:'Ready',availableOn:n.updatedAt}))] });
   } catch (err) {
     return res.status(400).json({ success: false, message: "Error: " + err.message });
   }
@@ -1102,10 +981,10 @@ const updateClientProfile = async (req, res) => {
       update.password = bcrypt.hashSync(String(req.body.password).trim(), 10);
     }
 
-    const data = await Client.findByIdAndUpdate(req.params.clientId, update, { new: true }).select("-password");
+    const data = await require("../services/accounts").saveAccount(Client,"client",req.params.clientId,update);
     return res.status(200).json({ success: true, message: "Profile updated successfully", data });
   } catch (err) {
-    return res.status(400).json({ success: false, message: "Error: " + err.message });
+    return res.status(err.status||400).json({ success: false, message: "Error: " + err.message });
   }
 };
 
