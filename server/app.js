@@ -4,6 +4,7 @@ function createApp({sessionStore}={}){
  const app=express();app.disable('x-powered-by');if(process.env.TRUST_PROXY==='1')app.set('trust proxy',1);
  if(!process.env.SESSION_SECRET||process.env.SESSION_SECRET.length<32)throw new Error('Set SESSION_SECRET to at least 32 random characters');
  app.use(helmet({contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'","'unsafe-inline'"],imgSrc:["'self'",'data:','blob:'],fontSrc:["'self'",'data:'],connectSrc:["'self'"],objectSrc:["'none'"],frameAncestors:["'none'"],formAction:["'self'",'https://secure.payu.in','https://test.payu.in'],upgradeInsecureRequests:process.env.NODE_ENV==='production'?[]:null}}}));
+ app.use('/api',(_req,res,next)=>{res.set('Cache-Control','private, no-store');next()});
  app.use(express.json({limit:'1mb'}),express.urlencoded({extended:false,limit:'1mb'}));
  app.use(session({name:process.env.SESSION_COOKIE_NAME||'notice.sid',secret:process.env.SESSION_SECRET,store:sessionStore||MongoStore.create({mongoUrl:process.env.MONGODB_URI}),resave:false,saveUninitialized:false,cookie:{httpOnly:true,sameSite:'lax',secure:process.env.NODE_ENV==='production',maxAge:86400000}}));
  app.use('/api',rateLimit({windowMs:60000,limit:180,standardHeaders:'draft-8',legacyHeaders:false}));

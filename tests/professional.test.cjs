@@ -629,6 +629,8 @@ test("AI evidence cannot be taken from another matter even when the advocate can
 });
 
 test("notification history paginates without gaps or duplicates and keeps older unread updates accessible", async () => {
+  const session = await client.get("/api/session");
+  assert.match(session.headers["cache-control"], /private/); assert.match(session.headers["cache-control"], /no-store/);
   const { ClientNotification } = require("../server/src/access"), n = await matter("QA-HISTORY-PAGING");
   await ClientNotification.create(Array.from({ length: 55 }, (_, i) => ({ clientId: users.client.id,
     noticeId: n.noticeId, notificationId: "PAGING-" + i, channel: "Portal", message: "History row " + i, status: "Unread" })));
@@ -636,6 +638,7 @@ test("notification history paginates without gaps or duplicates and keeps older 
   do {
     const response = await client.get("/api/client-portal/notification-feed" + (before ? "?before=" + before : ""));
     assert.equal(response.status, 200); const page = response.body.data;
+    assert.match(response.headers["cache-control"], /no-store/);
     assert.ok(page.items.length <= 50); assert.ok(page.unreadCount >= 55);
     for (const item of page.items) { assert.equal(seen.has(item._id), false); seen.add(item._id); }
     if (pages === 0) { assert.equal(page.hasMore, true); assert.equal(page.items.length, 50); }

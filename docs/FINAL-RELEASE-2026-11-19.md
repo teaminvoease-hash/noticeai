@@ -20,6 +20,8 @@ of this release.
 4. Vercel static pages now receive a Content Security Policy, anti-framing,
    MIME-sniffing, referrer and permissions headers. Existing function protections
    and private/no-store document rules remain intact.
+   All API responses, including sessions and CSRF tokens, explicitly disallow
+   shared/browser caching with `private, no-store`.
 
 ## Verification
 
