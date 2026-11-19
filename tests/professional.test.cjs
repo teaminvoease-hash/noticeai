@@ -582,6 +582,7 @@ test("assigned advocate revises AI notice, edits it, re-vets the new version and
     assert.equal((await require("../server/src/access").ClientNotice.findById(n.id)).draftRevision, 0, "AI generation does not overwrite the notice");
     assert.equal((await call(otherLawyer, "post", applyUrl, { reviewed: true })).status, 404);
     assert.equal((await call(lawyer, "post", applyUrl, { reviewed: true, editedDraft: " " })).status, 400);
+    assert.equal((await call(lawyer, "post", applyUrl, { reviewed: true, matterId: users.client.id })).status, 409, "a proposal cannot be applied through another matter's page");
     const edited = "Advocate-corrected notice based on the supplied evidence.\n\n<script>untrusted()</script> is quoted text, not executable markup.";
     const applied = await call(lawyer, "post", applyUrl, { reviewed: true, editedDraft: edited });
     assert.equal(applied.status, 200); assert.equal(applied.body.data.draftRevision, 1); assert.equal(applied.body.data.status, "pending");
@@ -625,6 +626,29 @@ test("AI evidence cannot be taken from another matter even when the advocate can
   const response = await call(actor, "post", "/api/ai/matters/" + n.id + "/draft", { consentToAi: true, fileName: upload.body.fileName });
   assert.equal(response.status, 403); assert.match(response.body.message, /this matter/);
   assert.equal(await mongoose.models.ai_artifacts.countDocuments({ noticeId: n.noticeId }), 0);
+});
+
+test("notification history paginates without gaps or duplicates and keeps older unread updates accessible", async () => {
+  const { ClientNotification } = require("../server/src/access"), n = await matter("QA-HISTORY-PAGING");
+  await ClientNotification.create(Array.from({ length: 55 }, (_, i) => ({ clientId: users.client.id,
+    noticeId: n.noticeId, notificationId: "PAGING-" + i, channel: "Portal", message: "History row " + i, status: "Unread" })));
+  const seen = new Set(); let before = "", pages = 0, older;
+  do {
+    const response = await client.get("/api/client-portal/notification-feed" + (before ? "?before=" + before : ""));
+    assert.equal(response.status, 200); const page = response.body.data;
+    assert.ok(page.items.length <= 50); assert.ok(page.unreadCount >= 55);
+    for (const item of page.items) { assert.equal(seen.has(item._id), false); seen.add(item._id); }
+    if (pages === 0) { assert.equal(page.hasMore, true); assert.equal(page.items.length, 50); }
+    else older ||= page.items.find(item => item.message.startsWith("History row "));
+    before = page.nextCursor; pages++;
+  } while (before);
+  assert.ok(pages >= 2); assert.ok(older);
+  assert.equal(seen.size, await ClientNotification.countDocuments({ clientId: users.client.id }));
+  assert.equal((await call(client, "patch", "/api/client-portal/notifications/" + older._id + "/read")).status, 200);
+  assert.equal((await ClientNotification.findById(older._id)).status, "Read");
+  assert.equal((await client.get("/api/client-portal/notification-feed?before=invalid")).status, 400);
+  const foreign = (await outsider.get("/api/client-portal/notification-feed")).body.data;
+  assert.equal(foreign.items.some(item => item.noticeId === n.noticeId), false);
 });
 
 test("missing identity index pauses account changes without altering the database", async () => {

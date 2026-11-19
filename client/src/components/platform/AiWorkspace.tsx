@@ -116,10 +116,68 @@ export default function AiWorkspace({
     }
   }
   function choose(artifact: Artifact) {
+    if (
+      proposalDirty &&
+      !window.confirm(
+        "Discard your unsaved proposal edits and open another proposal?",
+      )
+    )
+      return;
     setActive(artifact);
     setReviewed(false);
     setEditedDraft(artifact.draft || "");
   }
+  const proposalDirty =
+    active?.kind === "draft" &&
+    active.appliedRevision == null &&
+    editedDraft !== (active.draft || "");
+  useEffect(() => {
+    if (!proposalDirty) return;
+    const unload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    const navigate = (event: MouseEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        event.altKey
+      )
+        return;
+      const anchor = (event.target as Element)?.closest?.(
+        "a[href]",
+      ) as HTMLAnchorElement | null;
+      if (
+        !anchor ||
+        anchor.target === "_blank" ||
+        anchor.hasAttribute("download")
+      )
+        return;
+      const destination = new URL(anchor.href, window.location.href);
+      if (
+        destination.origin === window.location.origin &&
+        destination.pathname === window.location.pathname &&
+        destination.search === window.location.search
+      )
+        return;
+      if (
+        !window.confirm(
+          "Leave this matter and discard your unsaved AI-proposal edits?",
+        )
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    window.addEventListener("beforeunload", unload);
+    document.addEventListener("click", navigate, true);
+    return () => {
+      window.removeEventListener("beforeunload", unload);
+      document.removeEventListener("click", navigate, true);
+    };
+  }, [proposalDirty]);
   return (
     <Card className="ai-workspace my-6">
       <CardHeader>
@@ -242,7 +300,15 @@ export default function AiWorkspace({
           </div>
           <div>
             <h3 className="text-sm font-semibold">AI preparation</h3>
-            {editingDraft && <p role="status" className="my-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-7">Save or cancel your current manual edits before generating or applying an AI draft proposal.</p>}
+            {editingDraft && (
+              <p
+                role="status"
+                className="my-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-7"
+              >
+                Save or cancel your current manual edits before generating or
+                applying an AI draft proposal.
+              </p>
+            )}
             {role === "lawyer" && !signedFile && (
               <p className="mt-2 text-xs leading-6 text-muted-foreground">
                 You can also{" "}
@@ -371,6 +437,7 @@ export default function AiWorkspace({
                         busy ||
                         !consent ||
                         (editingDraft && kind !== "facts") ||
+                        (proposalDirty && kind !== "facts") ||
                         !!signedFile ||
                         (kind === "revise" &&
                           (paymentStatus !== "Paid" ||
@@ -609,7 +676,7 @@ export default function AiWorkspace({
                           const saved = await api<{ draftRevision: number }>(
                             "/api/ai/artifacts/" + active._id + "/apply",
                             "POST",
-                            { reviewed: true, editedDraft },
+                            { reviewed: true, editedDraft, matterId },
                           );
                           setActive({
                             ...active,
@@ -652,7 +719,15 @@ export default function AiWorkspace({
               variant="ghost"
               size="sm"
               className="mt-4"
-              onClick={() => setActive(null)}
+              onClick={() => {
+                if (
+                  !proposalDirty ||
+                  window.confirm(
+                    "Discard your unsaved proposal edits and close this proposal?",
+                  )
+                )
+                  setActive(null);
+              }}
             >
               Close proposal
             </Button>

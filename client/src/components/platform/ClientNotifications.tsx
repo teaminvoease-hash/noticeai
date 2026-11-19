@@ -1,12 +1,37 @@
 import { Link } from "react-router-dom";
 import ClientLayout from "@/AdminDashboard/dashscreen/eraser/ClientPortalLayout";
 import { api } from "@/lib/api";
-import { refreshNotifications, useClientUpdates } from "@/lib/notifications";
-import { useState } from "react";
+import {
+  refreshNotifications,
+  useClientUpdates,
+  type ClientUpdate,
+  type NotificationPage,
+} from "@/lib/notifications";
+import { useEffect, useMemo, useState } from "react";
+const merge = (rows: ClientUpdate[]) =>
+  [...new Map(rows.map((item) => [item._id, item])).values()].sort((a, b) =>
+    b._id.localeCompare(a._id),
+  );
 export default function ClientNotifications() {
   const feed = useClientUpdates(),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState("");
+    [busy, setBusy] = useState(""),
+    [history, setHistory] = useState<ClientUpdate[]>([]),
+    [olderPage, setOlderPage] = useState<{
+      hasMore: boolean;
+      nextCursor: string | null;
+    } | null>(null),
+    [loadingOlder, setLoadingOlder] = useState(false);
+  useEffect(() => {
+    setHistory((previous) =>
+      previous.length ? merge([...previous, ...feed.items]) : previous,
+    );
+  }, [feed.items]);
+  const items = useMemo(
+    () => merge([...history, ...feed.items]),
+    [history, feed.items],
+  );
+  const paging = olderPage || feed;
   return (
     <ClientLayout
       title="Your updates"
@@ -26,11 +51,11 @@ export default function ClientNotifications() {
       </button>
       {!feed.loaded ? (
         <p>Loading updates…</p>
-      ) : !feed.items.length ? (
+      ) : !items.length ? (
         <p>No updates yet. Your team’s updates will appear here.</p>
       ) : (
         <ol className="matter-timeline">
-          {feed.items.map((item) => (
+          {items.map((item) => (
             <li key={item._id}>
               <p>
                 <strong>{item.noticeId || "Account update"}</strong> ·{" "}
@@ -67,6 +92,13 @@ export default function ClientNotifications() {
                           "/read",
                         "PATCH",
                       );
+                      setHistory((previous) =>
+                        previous.map((row) =>
+                          row._id === item._id
+                            ? { ...row, status: "Read" }
+                            : row,
+                        ),
+                      );
                       await refreshNotifications();
                     } catch (e) {
                       setError(
@@ -85,6 +117,40 @@ export default function ClientNotifications() {
             </li>
           ))}
         </ol>
+      )}
+      {paging.hasMore && (
+        <button
+          className="btn btn-light"
+          disabled={loadingOlder}
+          onClick={async () => {
+            if (!paging.nextCursor) return;
+            setLoadingOlder(true);
+            setError("");
+            try {
+              const page = await api<NotificationPage>(
+                "/api/client-portal/notification-feed?before=" +
+                  encodeURIComponent(paging.nextCursor),
+              );
+              setHistory((previous) =>
+                merge([...previous, ...feed.items, ...page.items]),
+              );
+              setOlderPage({
+                hasMore: page.hasMore,
+                nextCursor: page.nextCursor,
+              });
+            } catch (e) {
+              setError(
+                e instanceof Error
+                  ? e.message
+                  : "Older updates could not load. Try again.",
+              );
+            } finally {
+              setLoadingOlder(false);
+            }
+          }}
+        >
+          {loadingOlder ? "Loading older updates…" : "Load older updates"}
+        </button>
       )}
       <p>
         These are in-app updates. Courier status is recorded by your team; it is

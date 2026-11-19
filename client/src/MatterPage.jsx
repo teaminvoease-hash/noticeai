@@ -98,6 +98,7 @@ export default function MatterPage() {
     setEditing(false);
     setEditFacts(false);
     setVersion(null);
+    setSigned(null);
     load()
       .then(() => title.current?.focus())
       .catch((e) => setError(e.message));
@@ -357,6 +358,7 @@ export default function MatterPage() {
           </section>
           <ProfessionalNotice />
           <HandoffPanel
+            key={id}
             matterId={id}
             workflow={data.workflow}
             role={role}
@@ -649,6 +651,7 @@ export default function MatterPage() {
             fallback={<p role="status">Loading document intelligence tools…</p>}
           >
             <AiWorkspace
+              key={id}
               matterId={id}
               role={role}
               revision={n.draftRevision || 0}
@@ -855,6 +858,7 @@ export default function MatterPage() {
               </>
             )}
             <VettingPanel
+              key={id}
               matterId={id}
               role={role}
               revision={n.draftRevision || 0}
@@ -1069,6 +1073,7 @@ export default function MatterPage() {
                   <label htmlFor="signed-pdf">Final signed PDF</label>
                   <input
                     id="signed-pdf"
+                    key={id}
                     type="file"
                     accept=".pdf"
                     required
@@ -1083,7 +1088,7 @@ export default function MatterPage() {
                   </button>
                 </form>
               )}
-            <DeliveryPanel notice={n} canUpdate={['admin','lawyer'].includes(role)} onUpdated={load}/>
+            <DeliveryPanel key={id} notice={n} canUpdate={['admin','lawyer'].includes(role)} onUpdated={load}/>
 
           </section>
           <section

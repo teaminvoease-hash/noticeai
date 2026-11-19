@@ -238,6 +238,8 @@ router.post(
       lawyerId: req.session.user.id,
     });
     if (!n) a.fail(404, "Matter not found");
+    if (req.body.matterId !== undefined && req.body.matterId !== String(n._id))
+      a.fail(409, "This proposal belongs to a different matter. Reopen the correct matter before applying it.");
     if ((n.draftRevision || 0) !== artifact.sourceRevision)
       a.fail(
         409,

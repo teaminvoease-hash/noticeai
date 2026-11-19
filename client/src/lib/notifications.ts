@@ -9,13 +9,24 @@ export interface ClientUpdate {
   status: string;
   createdAt: string;
 }
-interface Feed {
+export interface NotificationPage {
   items: ClientUpdate[];
   unreadCount: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+}
+interface Feed extends NotificationPage {
   error: string;
   loaded: boolean;
 }
-const empty: Feed = { items: [], unreadCount: 0, error: "", loaded: false };
+const empty: Feed = {
+  items: [],
+  unreadCount: 0,
+  hasMore: false,
+  nextCursor: null,
+  error: "",
+  loaded: false,
+};
 let state = empty,
   running = false,
   timer: ReturnType<typeof setTimeout> | undefined,
@@ -32,7 +43,7 @@ export async function refreshNotifications() {
   const current = new AbortController();
   controller = current;
   try {
-    const data = await api<{ items: ClientUpdate[]; unreadCount: number }>(
+    const data = await api<NotificationPage>(
       "/api/client-portal/notification-feed",
       "GET",
       undefined,

@@ -58,13 +58,16 @@ router.get('/downloads',allow('admin','client'),run('getDownloads'));
 router.get('/notifications',allow('admin','client'),run('getNotifications'));
 router.get('/notification-feed',allow('client'),wrap(async(req,res)=>{
  const filter={clientId:req.session.user.id};
- const [items,unreadCount]=await Promise.all([
-  a.ClientNotification.find(filter).sort({_id:-1}).limit(50).lean(),
+ const before=req.query.before;
+ if(before!==undefined&&(typeof before!=='string'||!require('mongoose').isObjectIdOrHexString(before)))fail(400,'Invalid notification page. Refresh updates and try again.');
+ const [rows,unreadCount]=await Promise.all([
+  a.ClientNotification.find({...filter,...(before?{_id:{$lt:before}}:{})}).sort({_id:-1}).limit(51).lean(),
   a.ClientNotification.countDocuments({...filter,status:'Unread'})
  ]);
+ const items=rows.slice(0,50),hasMore=rows.length>50;
  const notices=await a.ClientNotice.find({...filter,noticeId:{$in:items.map(n=>n.noticeId).filter(Boolean)}}).select('_id noticeId').lean();
  const map=new Map(notices.map(n=>[n.noticeId,String(n._id)]));
- res.set('Cache-Control','private, no-store').json({success:true,data:{items:items.map(n=>({...n,matterId:map.get(n.noticeId)||null,section:['delivery','signed','documents','next-action','assignment'].includes(n.section)?n.section:'timeline'})),unreadCount}});
+ res.set('Cache-Control','private, no-store').json({success:true,data:{items:items.map(n=>({...n,matterId:map.get(n.noticeId)||null,section:['delivery','signed','documents','next-action','assignment'].includes(n.section)?n.section:'timeline'})),unreadCount,hasMore,nextCursor:hasMore?String(items.at(-1)._id):null}});
 }));
 router.post('/notifications',allow('admin'),run('createNotification'));
 router.patch('/notifications/:id/read',allow('client'),wrap(async(req,res,next)=>{if(!await a.ClientNotification.exists({_id:req.params.id,clientId:req.session.user.id}))fail(404,'Notification not found');next()}),run('markNotificationRead'));
